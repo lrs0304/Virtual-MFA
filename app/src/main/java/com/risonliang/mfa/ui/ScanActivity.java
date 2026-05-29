@@ -13,7 +13,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import com.journeyapps.barcodescanner.BarcodeCallback;
 import com.journeyapps.barcodescanner.BarcodeResult;
-import com.journeyapps.barcodescanner.DecoratedBarcodeView;
+import com.journeyapps.barcodescanner.BarcodeView;
 import com.journeyapps.barcodescanner.DefaultDecoderFactory;
 import com.google.zxing.BarcodeFormat;
 import com.risonliang.mfa.R;
@@ -22,25 +22,22 @@ import java.util.List;
 
 /**
  * 扫码 Activity：纯离线，不联网。
+ * 使用原始 BarcodeView 而非 DecoratedBarcodeView，避免出现方向切换按钮等装饰控件。
  */
 public class ScanActivity extends AppCompatActivity {
 
     public static final String EXTRA_RESULT = "scan_result";
     private static final int REQ_CAMERA = 1001;
 
-    private DecoratedBarcodeView barcodeView_;
+    private BarcodeView barcodeView_;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // 直接构建 view，避免再写一份布局，减小 APK
-        barcodeView_ = new DecoratedBarcodeView(this);
-        barcodeView_.setStatusText(getString(R.string.scan_prompt));
-        setContentView(barcodeView_);
-
-        barcodeView_.getBarcodeView().setDecoderFactory(
-                new DefaultDecoderFactory(
-                        Collections.singletonList(BarcodeFormat.QR_CODE)));
+        setContentView(R.layout.activity_scan);
+        barcodeView_ = findViewById(R.id.barcode_view);
+        barcodeView_.setDecoderFactory(new DefaultDecoderFactory(
+                Collections.singletonList(BarcodeFormat.QR_CODE)));
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED) {
