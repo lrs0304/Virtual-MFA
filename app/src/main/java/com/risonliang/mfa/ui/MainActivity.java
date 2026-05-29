@@ -71,6 +71,11 @@ public class MainActivity extends AppCompatActivity {
         FloatingActionButton fab = findViewById(R.id.fab_add);
         fab.setOnClickListener(v -> showAddSheet());
 
+        // 列表底部留出导航栏/手势条空间（保留原 96dp 视觉留白），左右适配曲面屏。
+        InsetsUtils.applySidesAndBottomAsPadding(rvAccounts_);
+        // FAB 跟随导航栏 / 曲面屏调整 margin，初始基线 20dp。
+        InsetsUtils.applySidesAndBottomAsMargin(fab, 20, 20, 20);
+
         scanLauncher_ = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {

@@ -16,6 +16,7 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 import com.google.android.material.button.MaterialButton;
 import com.risonliang.mfa.R;
 import com.risonliang.mfa.data.BackupCodec;
@@ -34,10 +35,17 @@ public class ImportExportActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_import_export);
-        setTitle(R.string.title_import_export);
+
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
+        toolbar.setNavigationOnClickListener(v -> finish());
+
+        // 为内容区应用左右 + 底部安全距离。
+        InsetsUtils.applySidesAndBottomAsPadding(
+                findViewById(R.id.content_import_export));
 
         MaterialButton btnExport = findViewById(R.id.btn_export);
         MaterialButton btnImport = findViewById(R.id.btn_import);

@@ -7,10 +7,14 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import com.journeyapps.barcodescanner.BarcodeCallback;
 import com.journeyapps.barcodescanner.BarcodeResult;
 import com.journeyapps.barcodescanner.BarcodeView;
@@ -38,6 +42,24 @@ public class ScanActivity extends AppCompatActivity {
         barcodeView_ = findViewById(R.id.barcode_view);
         barcodeView_.setDecoderFactory(new DefaultDecoderFactory(
                 Collections.singletonList(BarcodeFormat.QR_CODE)));
+
+        // 让底部提示文字避让导航栏 / 手势条 / 曲面屏。
+        final TextView tvStatus = findViewById(R.id.tv_status);
+        final float density = getResources().getDisplayMetrics().density;
+        final int baseBottom = (int) (48 * density);
+        ViewCompat.setOnApplyWindowInsetsListener(tvStatus, (v, wic) -> {
+            Insets bars = wic.getInsets(
+                    WindowInsetsCompat.Type.systemBars()
+                            | WindowInsetsCompat.Type.displayCutout());
+            android.view.ViewGroup.MarginLayoutParams mlp =
+                    (android.view.ViewGroup.MarginLayoutParams)
+                            v.getLayoutParams();
+            mlp.bottomMargin = baseBottom + bars.bottom;
+            mlp.leftMargin = bars.left;
+            mlp.rightMargin = bars.right;
+            v.setLayoutParams(mlp);
+            return wic;
+        });
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED) {

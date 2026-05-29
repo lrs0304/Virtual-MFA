@@ -9,6 +9,7 @@ import android.view.View;
 import android.widget.Spinner;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.risonliang.mfa.R;
@@ -22,10 +23,17 @@ public class AddManualActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_manual);
-        setTitle(R.string.title_add_manual);
+
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
+        toolbar.setNavigationOnClickListener(v -> finish());
+
+        // 让内容区遵循左右曲面屏与底部导航/IME 安全距离。
+        InsetsUtils.applySidesAndBottomAsPadding(
+                findViewById(R.id.sv_content));
 
         TextInputEditText etIssuer = findViewById(R.id.et_issuer);
         TextInputEditText etAccount = findViewById(R.id.et_account);

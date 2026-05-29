@@ -44,6 +44,7 @@
     <string name="import_failed">导入失败：密码错误或文件损坏</string>
     <string name="password_mismatch">两次密码输入不一致</string>
     <string name="password_too_short">密码至少6位</string>
+    <string name="import_export_tip">导入/导出文件均使用您设置的密码进行 AES-256-GCM 加密。\n请妥善保管密码，密码丢失将无法恢复数据。</string>
 
     <!-- 删除 -->
     <string name="action_delete">删除</string>
