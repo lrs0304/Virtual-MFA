@@ -22,23 +22,32 @@ import com.risonliang.mfa.security.AppLockManager;
 import java.util.concurrent.Executor;
 
 /**
- * 解锁/设置 PIN 的入口 Activity。
+ * 解锁 / 设置 / 修改 PIN 的入口 Activity。
  *
- * 行为：
- *  - 若未设置 PIN，进入"设置 PIN"模式，需输入两次相同的 4-12 位数字。
- *  - 已设置 PIN 时进入"解锁"模式，输入正确即标记会话已解锁并启动主界面。
- *  - 设备具备生物识别条件时显示"使用指纹/面容解锁"按钮，
- *    成功亦视为已通过密码验证（前提是已设置过 PIN）。
+ * 三种模式（按 EXTRA_MODE 决定，默认按 PIN 是否已设置自动选择）：
+ *  - {@link #MODE_SETUP}：首次设置 PIN，需输入两次相同的 4-12 位数字。
+ *  - {@link #MODE_UNLOCK}：解锁；输入正确即标记会话已解锁并进入主界面。
+ *  - {@link #MODE_CHANGE}：修改 PIN；先校验旧 PIN，再分两次输入新 PIN。
  *
  * 安全考虑：
  *  - 启用 FLAG_SECURE 防止截屏 / 录屏 / Recents 缩略图泄露 PIN 输入界面。
  *  - 自身不继承 BaseSecureActivity，避免 onStart 时再次跳回自己造成循环。
- *  - 解锁前禁止返回桌面以外的逃逸：返回键 == 退出 App。
+ *  - 解锁前禁止返回桌面以外的逃逸：返回键 == 退出 App；
+ *    修改模式则按返回键 = 取消并回到调用者。
  */
 public class LockActivity extends AppCompatActivity {
 
+    /** Intent extra：模式选择。可选值见 MODE_* 常量；缺省时按状态自动判断。 */
+    public static final String EXTRA_MODE = "lock_mode";
+    public static final int MODE_AUTO = 0;
+    public static final int MODE_SETUP = 1;
+    public static final int MODE_UNLOCK = 2;
+    public static final int MODE_CHANGE = 3;
+
     private AppLockManager lock_;
-    private boolean isSetupMode_ = false;
+    private int mode_ = MODE_AUTO;
+    /** 修改模式的内部步骤：0=校验旧 PIN，1=输入新 PIN（含确认）。 */
+    private int changeStep_ = 0;
 
     private EditText etPin_;
     private EditText etPinConfirm_;
@@ -58,7 +67,7 @@ public class LockActivity extends AppCompatActivity {
         setContentView(R.layout.activity_lock);
 
         lock_ = AppLockManager.get(this);
-        isSetupMode_ = !lock_.isPinConfigured();
+        mode_ = resolveMode(getIntent().getIntExtra(EXTRA_MODE, MODE_AUTO));
 
         etPin_ = findViewById(R.id.et_pin);
         etPinConfirm_ = findViewById(R.id.et_pin_confirm);
@@ -68,34 +77,83 @@ public class LockActivity extends AppCompatActivity {
         btnConfirm_ = findViewById(R.id.btn_confirm);
         btnBiometric_ = findViewById(R.id.btn_biometric);
 
-        if (isSetupMode_) {
-            tvTitle_.setText(R.string.lock_setup_title);
-            tvSubtitle_.setText(R.string.lock_setup_subtitle);
-            etPinConfirm_.setVisibility(View.VISIBLE);
-            btnBiometric_.setVisibility(View.GONE);
-        } else {
-            tvTitle_.setText(R.string.lock_unlock_title);
-            tvSubtitle_.setText(R.string.lock_pin_hint);
-            etPinConfirm_.setVisibility(View.GONE);
-            updateBiometricButton();
-        }
+        applyModeUi();
 
         btnConfirm_.setOnClickListener(v -> onConfirm());
         btnBiometric_.setOnClickListener(v -> showBiometricPrompt());
     }
 
+    /** 根据外部传入的 mode 与当前 PIN 配置态，校正成最终模式。 */
+    private int resolveMode(int requested) {
+        if (requested == MODE_CHANGE && lock_.isPinConfigured()) {
+            return MODE_CHANGE;
+        }
+        if (requested == MODE_SETUP && !lock_.isPinConfigured()) {
+            return MODE_SETUP;
+        }
+        if (requested == MODE_UNLOCK && lock_.isPinConfigured()) {
+            return MODE_UNLOCK;
+        }
+        // AUTO 或参数与状态不匹配时按状态自动选择。
+        return lock_.isPinConfigured() ? MODE_UNLOCK : MODE_SETUP;
+    }
+
+    /** 根据当前模式（及修改模式的子步骤）刷新文案与控件可见性。 */
+    private void applyModeUi() {
+        etPin_.setText("");
+        etPinConfirm_.setText("");
+        tvError_.setVisibility(View.INVISIBLE);
+
+        switch (mode_) {
+            case MODE_SETUP:
+                tvTitle_.setText(R.string.lock_setup_title);
+                tvSubtitle_.setText(R.string.lock_setup_subtitle);
+                etPinConfirm_.setVisibility(View.VISIBLE);
+                btnBiometric_.setVisibility(View.GONE);
+                break;
+            case MODE_CHANGE:
+                if (changeStep_ == 0) {
+                    tvTitle_.setText(R.string.lock_change_title);
+                    tvSubtitle_.setText(R.string.lock_change_old_subtitle);
+                    etPinConfirm_.setVisibility(View.GONE);
+                } else {
+                    tvTitle_.setText(R.string.lock_change_title);
+                    tvSubtitle_.setText(R.string.lock_change_new_subtitle);
+                    etPinConfirm_.setVisibility(View.VISIBLE);
+                }
+                btnBiometric_.setVisibility(View.GONE);
+                break;
+            case MODE_UNLOCK:
+            default:
+                tvTitle_.setText(R.string.lock_unlock_title);
+                tvSubtitle_.setText(R.string.lock_pin_hint);
+                etPinConfirm_.setVisibility(View.GONE);
+                updateBiometricButton();
+                break;
+        }
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
-        // 自动唤起一次生物识别（仅解锁模式且用户开启）。
-        if (!isSetupMode_ && canUseBiometric() && lock_.isBiometricEnabled()) {
+        // 仅"解锁"模式且用户开启时，自动唤起一次生物识别。
+        if (mode_ == MODE_UNLOCK
+                && canUseBiometric() && lock_.isBiometricEnabled()) {
             etPin_.post(this::showBiometricPrompt);
         }
     }
 
-    /** 阻止用户在解锁前返回桌面以外的位置：直接退出 Task。 */
+    /**
+     * 解锁模式按返回 = 退到桌面；修改模式按返回 = 取消修改并回到调用者。
+     * 设置模式（首次启动）也按退到桌面处理，强制完成首次设置。
+     */
     @Override
     public void onBackPressed() {
+        if (mode_ == MODE_CHANGE) {
+            setResult(RESULT_CANCELED);
+            super.onBackPressed();
+            return;
+        }
         moveTaskToBack(true);
     }
 
@@ -106,31 +164,78 @@ public class LockActivity extends AppCompatActivity {
             showError(getString(R.string.lock_pin_too_short));
             return;
         }
-        if (isSetupMode_) {
-            String confirm = etPinConfirm_.getText() == null
-                    ? "" : etPinConfirm_.getText().toString();
-            if (!pin.equals(confirm)) {
-                showError(getString(R.string.lock_pin_mismatch));
-                return;
-            }
-            try {
-                lock_.setPin(pin.toCharArray());
-            } catch (Exception e) {
-                showError(e.getMessage() == null
-                        ? "error" : e.getMessage());
-                return;
-            }
-            Toast.makeText(this, R.string.lock_setup_done,
-                    Toast.LENGTH_SHORT).show();
+        switch (mode_) {
+            case MODE_SETUP:
+                handleSetup(pin);
+                break;
+            case MODE_UNLOCK:
+                handleUnlock(pin);
+                break;
+            case MODE_CHANGE:
+                handleChange(pin);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void handleSetup(String pin) {
+        String confirm = etPinConfirm_.getText() == null
+                ? "" : etPinConfirm_.getText().toString();
+        if (!pin.equals(confirm)) {
+            showError(getString(R.string.lock_pin_mismatch));
+            return;
+        }
+        try {
+            lock_.setPin(pin.toCharArray());
+        } catch (Exception e) {
+            showError(e.getMessage() == null ? "error" : e.getMessage());
+            return;
+        }
+        Toast.makeText(this, R.string.lock_setup_done,
+                Toast.LENGTH_SHORT).show();
+        grantAndEnter();
+    }
+
+    private void handleUnlock(String pin) {
+        if (lock_.verifyPin(pin.toCharArray())) {
             grantAndEnter();
         } else {
-            if (lock_.verifyPin(pin.toCharArray())) {
-                grantAndEnter();
-            } else {
+            showError(getString(R.string.lock_pin_wrong));
+            etPin_.setText("");
+        }
+    }
+
+    private void handleChange(String pin) {
+        if (changeStep_ == 0) {
+            // 第一步：校验旧 PIN。
+            if (!lock_.verifyPin(pin.toCharArray())) {
                 showError(getString(R.string.lock_pin_wrong));
                 etPin_.setText("");
+                return;
             }
+            changeStep_ = 1;
+            applyModeUi();
+            return;
         }
+        // 第二步：写入新 PIN（带二次确认）。
+        String confirm = etPinConfirm_.getText() == null
+                ? "" : etPinConfirm_.getText().toString();
+        if (!pin.equals(confirm)) {
+            showError(getString(R.string.lock_pin_mismatch));
+            return;
+        }
+        try {
+            lock_.setPin(pin.toCharArray());
+        } catch (Exception e) {
+            showError(e.getMessage() == null ? "error" : e.getMessage());
+            return;
+        }
+        Toast.makeText(this, R.string.lock_change_done,
+                Toast.LENGTH_SHORT).show();
+        // 当前会话保持已解锁状态（用户刚刚做完密码校验），无需再回登陆页。
+        setResult(RESULT_OK);
+        finish();
     }
 
     private void showError(String msg) {

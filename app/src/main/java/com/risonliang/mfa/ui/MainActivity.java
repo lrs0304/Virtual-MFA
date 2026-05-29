@@ -129,6 +129,12 @@ public class MainActivity extends BaseSecureActivity {
             startActivity(new Intent(this, ImportExportActivity.class));
             return true;
         }
+        if (id == R.id.action_change_pin) {
+            Intent it = new Intent(this, LockActivity.class);
+            it.putExtra(LockActivity.EXTRA_MODE, LockActivity.MODE_CHANGE);
+            startActivity(it);
+            return true;
+        }
         return super.onOptionsItemSelected(item);
     }
 
