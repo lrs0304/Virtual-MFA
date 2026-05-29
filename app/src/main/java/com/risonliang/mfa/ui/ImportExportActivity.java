@@ -19,16 +19,25 @@ import androidx.appcompat.widget.Toolbar;
 import com.google.android.material.button.MaterialButton;
 import com.risonliang.mfa.R;
 import com.risonliang.mfa.data.BackupCodec;
+import com.risonliang.mfa.data.CsvBackup;
 import com.risonliang.mfa.data.OtpRepository;
 import com.risonliang.mfa.model.OtpAccount;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public class ImportExportActivity extends BaseSecureActivity {
 
+    /** 导出格式枚举：加密 .2fa 或 明文 .csv。 */
+    private enum ExportFormat { ENCRYPTED_2FA, PLAIN_CSV }
+
     private ActivityResultLauncher<Intent> exportLauncher_;
     private ActivityResultLauncher<Intent> importLauncher_;
+    /** 当前导出选择的格式。在用户挑选目标文件前由对话框选定。 */
+    private ExportFormat pendingExportFormat_ = ExportFormat.ENCRYPTED_2FA;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,7 +63,13 @@ public class ImportExportActivity extends BaseSecureActivity {
                 result -> {
                     if (result.getResultCode() == Activity.RESULT_OK
                             && result.getData() != null) {
-                        promptPasswordForExport(result.getData().getData());
+                        Uri uri = result.getData().getData();
+                        if (pendingExportFormat_
+                                == ExportFormat.ENCRYPTED_2FA) {
+                            promptPasswordForExport(uri);
+                        } else {
+                            doExportCsv(uri);
+                        }
                     }
                 });
         importLauncher_ = registerForActivityResult(
@@ -62,17 +77,11 @@ public class ImportExportActivity extends BaseSecureActivity {
                 result -> {
                     if (result.getResultCode() == Activity.RESULT_OK
                             && result.getData() != null) {
-                        promptPasswordForImport(result.getData().getData());
+                        handleImport(result.getData().getData());
                     }
                 });
 
-        btnExport.setOnClickListener(v -> {
-            Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-            i.addCategory(Intent.CATEGORY_OPENABLE);
-            i.setType("application/octet-stream");
-            i.putExtra(Intent.EXTRA_TITLE, "mfa_backup.2fa");
-            exportLauncher_.launch(i);
-        });
+        btnExport.setOnClickListener(v -> showExportFormatChooser());
 
         btnImport.setOnClickListener(v -> {
             Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -88,12 +97,57 @@ public class ImportExportActivity extends BaseSecureActivity {
         return true;
     }
 
-    private void promptPasswordForExport(Uri uri) {
-        showPasswordDialog(true, password -> doExport(uri, password));
+    /** 弹出导出格式选择对话框：卡片化展示，加密 .2fa 与 明文 .csv 一目了然。 */
+    private void showExportFormatChooser() {
+        android.view.View view = android.view.LayoutInflater.from(this)
+                .inflate(R.layout.dialog_export_format, null);
+        AlertDialog dlg = new AlertDialog.Builder(this)
+                .setTitle(R.string.export_format_title)
+                .setView(view)
+                .setNegativeButton(R.string.dialog_cancel, null)
+                .create();
+        view.findViewById(R.id.card_encrypted).setOnClickListener(v -> {
+            dlg.dismiss();
+            pendingExportFormat_ = ExportFormat.ENCRYPTED_2FA;
+            launchSaveDocument(
+                    "mfa_backup.2fa",
+                    "application/octet-stream");
+        });
+        view.findViewById(R.id.card_csv).setOnClickListener(v -> {
+            dlg.dismiss();
+            confirmCsvRiskThenExport();
+        });
+        dlg.show();
     }
 
-    private void promptPasswordForImport(Uri uri) {
-        showPasswordDialog(false, password -> doImport(uri, password));
+    /** 二次确认明文 CSV 风险后再触发系统选择保存路径。 */
+    private void confirmCsvRiskThenExport() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.csv_warning_title)
+                .setMessage(R.string.csv_warning_message)
+                .setNegativeButton(R.string.dialog_cancel, null)
+                .setPositiveButton(R.string.csv_warning_continue, (d, w) -> {
+                    pendingExportFormat_ = ExportFormat.PLAIN_CSV;
+                    launchSaveDocument("mfa_backup.csv", "text/csv");
+                })
+                .show();
+    }
+
+    private void launchSaveDocument(String suggestedName, String mimeType) {
+        Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType(mimeType);
+        i.putExtra(Intent.EXTRA_TITLE, suggestedName);
+        exportLauncher_.launch(i);
+    }
+
+    private void promptPasswordForExport(Uri uri) {
+        showPasswordDialog(true, password -> doExport2fa(uri, password));
+    }
+
+    private void promptPasswordForImport2fa(Uri uri, byte[] cachedBytes) {
+        showPasswordDialog(false,
+                password -> doImport2fa(cachedBytes, password));
     }
 
     private interface PasswordCallback {
@@ -148,7 +202,7 @@ public class ImportExportActivity extends BaseSecureActivity {
                 .show();
     }
 
-    private void doExport(Uri uri, char[] password) {
+    private void doExport2fa(Uri uri, char[] password) {
         try {
             List<OtpAccount> all = OtpRepository.get(this).listAll();
             try (OutputStream os = getContentResolver().openOutputStream(uri)) {
@@ -167,20 +221,93 @@ public class ImportExportActivity extends BaseSecureActivity {
         }
     }
 
-    private void doImport(Uri uri, char[] password) {
+    private void doExportCsv(Uri uri) {
+        try {
+            List<OtpAccount> all = OtpRepository.get(this).listAll();
+            try (OutputStream os = getContentResolver().openOutputStream(uri)) {
+                if (os == null) {
+                    throw new IllegalStateException("open output null");
+                }
+                CsvBackup.export(all, os);
+            }
+            Toast.makeText(this, R.string.export_success,
+                    Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, getString(R.string.export_failed)
+                    + "：" + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /**
+     * 自动识别导入文件格式：先一次性读全字节，按内容判定走哪条路径。
+     *  - 以 '{' 起始且能解出 v/salt/data 字段：视为加密 .2fa
+     *  - 否则视为 CSV
+     */
+    private void handleImport(Uri uri) {
+        byte[] bytes;
+        try (InputStream is = getContentResolver().openInputStream(uri)) {
+            if (is == null) {
+                throw new IllegalStateException("open input null");
+            }
+            ByteArrayOutputStream buf = new ByteArrayOutputStream();
+            byte[] tmp = new byte[4096];
+            int n;
+            while ((n = is.read(tmp)) > 0) {
+                buf.write(tmp, 0, n);
+            }
+            bytes = buf.toByteArray();
+        } catch (Exception e) {
+            Toast.makeText(this, R.string.import_failed,
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (looksLikeEncrypted2fa(bytes)) {
+            promptPasswordForImport2fa(uri, bytes);
+        } else if (looksLikeCsv(bytes)) {
+            doImportCsv(bytes);
+        } else {
+            Toast.makeText(this, R.string.import_format_unknown,
+                    Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** 简单嗅探：去 BOM/空白后看首字符是否为 '{'。 */
+    private static boolean looksLikeEncrypted2fa(byte[] bytes) {
+        int i = skipBomAndWs(bytes);
+        return i < bytes.length && bytes[i] == '{';
+    }
+
+    private static boolean looksLikeCsv(byte[] bytes) {
+        // 兜底：非 JSON 都按 CSV 尝试解析。让真正的解析器去判定行列结构。
+        return bytes.length > 0;
+    }
+
+    private static int skipBomAndWs(byte[] bytes) {
+        int i = 0;
+        if (bytes.length >= 3
+                && (bytes[0] & 0xff) == 0xEF
+                && (bytes[1] & 0xff) == 0xBB
+                && (bytes[2] & 0xff) == 0xBF) {
+            i = 3;
+        }
+        while (i < bytes.length) {
+            byte b = bytes[i];
+            if (b == ' ' || b == '\t' || b == '\r' || b == '\n') {
+                i++;
+            } else {
+                break;
+            }
+        }
+        return i;
+    }
+
+    private void doImport2fa(byte[] bytes, char[] password) {
         try {
             List<OtpAccount> list;
-            try (InputStream is = getContentResolver().openInputStream(uri)) {
-                if (is == null) {
-                    throw new IllegalStateException("open input null");
-                }
+            try (InputStream is = new ByteArrayInputStream(bytes)) {
                 list = BackupCodec.importFrom(is, password);
             }
-            int count = 0;
-            for (OtpAccount a : list) {
-                OtpRepository.get(this).insert(a);
-                count++;
-            }
+            int count = persist(list);
             Toast.makeText(this,
                     getString(R.string.import_success, count),
                     Toast.LENGTH_SHORT).show();
@@ -190,5 +317,30 @@ public class ImportExportActivity extends BaseSecureActivity {
         } finally {
             java.util.Arrays.fill(password, '\0');
         }
+    }
+
+    private void doImportCsv(byte[] bytes) {
+        try {
+            List<OtpAccount> list;
+            try (InputStream is = new ByteArrayInputStream(bytes)) {
+                list = CsvBackup.importFrom(is);
+            }
+            int count = persist(list);
+            Toast.makeText(this,
+                    getString(R.string.import_success, count),
+                    Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, R.string.import_failed,
+                    Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private int persist(List<OtpAccount> list) throws Exception {
+        int count = 0;
+        for (OtpAccount a : list) {
+            OtpRepository.get(this).insert(a);
+            count++;
+        }
+        return count;
     }
 }
