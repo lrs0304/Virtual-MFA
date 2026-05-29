@@ -52,6 +52,10 @@
     <string name="dialog_ok">确定</string>
     <string name="dialog_cancel">取消</string>
 
+    <!-- 编辑 -->
+    <string name="title_edit_account">编辑账号</string>
+    <string name="action_edit">编辑</string>
+
     <!-- 算法 -->
     <string-array name="algo_array">
         <item>SHA1</item>

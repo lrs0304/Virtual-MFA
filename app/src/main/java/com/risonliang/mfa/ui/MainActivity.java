@@ -7,16 +7,25 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.PorterDuff;
+import android.graphics.Rect;
+import android.graphics.RectF;
+import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.LayerDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
+import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -26,6 +35,7 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -67,6 +77,7 @@ public class MainActivity extends AppCompatActivity {
         rvAccounts_.setLayoutManager(new LinearLayoutManager(this));
         adapter_ = new OtpAdapter(data_, this::onItemClick, this::onItemLong);
         rvAccounts_.setAdapter(adapter_);
+        attachSwipeToDelete();
 
         FloatingActionButton fab = findViewById(R.id.fab_add);
         fab.setOnClickListener(v -> showAddSheet());
@@ -110,10 +121,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         int id = item.getItemId();
-        if (id == R.id.action_scan) {
-            launchScan();
-            return true;
-        }
         if (id == R.id.action_import_export) {
             startActivity(new Intent(this, ImportExportActivity.class));
             return true;
@@ -183,16 +190,144 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /** 长按改为编辑：仅允许修改 issuer / account，不动 secret。 */
     private void onItemLong(OtpAccount acc) {
+        View dialogView = LayoutInflater.from(this)
+                .inflate(R.layout.dialog_edit_account, null, false);
+        final EditText etIssuer = dialogView.findViewById(R.id.et_edit_issuer);
+        final EditText etAccount = dialogView.findViewById(R.id.et_edit_account);
+        etIssuer.setText(acc.issuer == null ? "" : acc.issuer);
+        etAccount.setText(acc.account == null ? "" : acc.account);
+
         new AlertDialog.Builder(this)
-                .setTitle(acc.displayLabel())
-                .setMessage(R.string.confirm_delete)
-                .setNegativeButton(R.string.dialog_cancel, null)
-                .setPositiveButton(R.string.dialog_ok, (d, w) -> {
-                    OtpRepository.get(this).delete(acc.id);
-                    reload();
+                .setTitle(R.string.title_edit_account)
+                .setView(dialogView)
+                .setNegativeButton(R.string.action_cancel, null)
+                .setPositiveButton(R.string.action_save, (d, w) -> {
+                    String newIssuer = etIssuer.getText() == null
+                            ? "" : etIssuer.getText().toString().trim();
+                    String newAccount = etAccount.getText() == null
+                            ? "" : etAccount.getText().toString().trim();
+                    if (TextUtils.isEmpty(newIssuer)
+                            && TextUtils.isEmpty(newAccount)) {
+                        Toast.makeText(this, R.string.error_required,
+                                Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    acc.issuer = newIssuer;
+                    acc.account = newAccount;
+                    try {
+                        OtpRepository.get(this).update(acc);
+                        reload();
+                    } catch (Exception e) {
+                        Toast.makeText(this, "保存失败：" + e.getMessage(),
+                                Toast.LENGTH_SHORT).show();
+                    }
                 })
                 .show();
+    }
+
+    /** 左滑删除（带二次确认）；取消则恢复条目。背景圆角与卡片保持一致。 */
+    private void attachSwipeToDelete() {
+        ItemTouchHelper.SimpleCallback cb = new ItemTouchHelper.SimpleCallback(
+                0, ItemTouchHelper.LEFT) {
+            private final Paint bgPaint_ = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private final Paint textPaint_ = new Paint(Paint.ANTI_ALIAS_FLAG);
+            private final Rect textBounds_ = new Rect();
+            private final RectF rectF_ = new RectF();
+            private final String label_ = getString(R.string.action_delete);
+            private final float textPx_ = TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_SP, 16f,
+                    getResources().getDisplayMetrics());
+            private final int padPx_ = (int) TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_DIP, 24f,
+                    getResources().getDisplayMetrics());
+            // 与 item_otp.xml 中 CardView 的视觉参数保持一致。
+            private final float cornerPx_ = TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_DIP, 12f,
+                    getResources().getDisplayMetrics());
+            private final int marginHPx_ = (int) TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_DIP, 12f,
+                    getResources().getDisplayMetrics());
+            private final int marginVPx_ = (int) TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_DIP, 6f,
+                    getResources().getDisplayMetrics());
+
+            {
+                bgPaint_.setColor(androidx.core.content.ContextCompat.getColor(
+                        MainActivity.this, R.color.progress_warn));
+                bgPaint_.setStyle(Paint.Style.FILL);
+                textPaint_.setColor(Color.WHITE);
+                textPaint_.setTextSize(textPx_);
+                textPaint_.setTypeface(Typeface.DEFAULT_BOLD);
+            }
+
+            @Override
+            public boolean onMove(@NonNull RecyclerView rv,
+                                  @NonNull RecyclerView.ViewHolder vh,
+                                  @NonNull RecyclerView.ViewHolder target) {
+                return false;
+            }
+
+            @Override
+            public void onSwiped(@NonNull RecyclerView.ViewHolder vh,
+                                 int direction) {
+                int pos = vh.getBindingAdapterPosition();
+                if (pos < 0 || pos >= data_.size()) {
+                    return;
+                }
+                OtpAccount acc = data_.get(pos);
+                new AlertDialog.Builder(MainActivity.this)
+                        .setTitle(acc.displayLabel())
+                        .setMessage(R.string.confirm_delete)
+                        .setNegativeButton(R.string.dialog_cancel,
+                                (d, w) -> adapter_.notifyItemChanged(pos))
+                        .setOnCancelListener(
+                                d -> adapter_.notifyItemChanged(pos))
+                        .setPositiveButton(R.string.dialog_ok, (d, w) -> {
+                            OtpRepository.get(MainActivity.this).delete(acc.id);
+                            reload();
+                        })
+                        .show();
+            }
+
+            @Override
+            public void onChildDraw(@NonNull Canvas c,
+                                    @NonNull RecyclerView rv,
+                                    @NonNull RecyclerView.ViewHolder vh,
+                                    float dX, float dY,
+                                    int actionState, boolean isCurrentlyActive) {
+                View item = vh.itemView;
+                if (dX < 0) {
+                    // 与 CardView 的 marginHorizontal=12dp / marginVertical=6dp 对齐
+                    float top = item.getTop() + marginVPx_;
+                    float bottom = item.getBottom() - marginVPx_;
+                    float right = item.getRight() - marginHPx_;
+                    float left = right + dX;
+                    // 防止滑动距离很小时，left 超过 right 造成绘制异常
+                    if (left > right) {
+                        left = right;
+                    }
+                    rectF_.set(left, top, right, bottom);
+                    c.drawRoundRect(rectF_, cornerPx_, cornerPx_, bgPaint_);
+
+                    textPaint_.getTextBounds(label_, 0, label_.length(),
+                            textBounds_);
+                    // 仅在背景宽度足以容纳文字时绘制，避免越界压在卡片上
+                    float bgWidth = right - left;
+                    float textWidth = textBounds_.width();
+                    if (bgWidth >= textWidth + padPx_) {
+                        float ty = top + (bottom - top + textBounds_.height())
+                                / 2f;
+                        float tx = right - padPx_ - textWidth;
+                        c.drawText(label_, tx, ty, textPaint_);
+                    }
+                }
+                super.onChildDraw(c, rv, vh, dX, dY,
+                        actionState, isCurrentlyActive);
+            }
+        };
+        new ItemTouchHelper(cb).attachToRecyclerView(rvAccounts_);
     }
 
     /** RecyclerView Adapter（内部类，避免拆分小文件、控制类数量）。 */
