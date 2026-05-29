@@ -8,7 +8,6 @@ import android.text.TextUtils;
 import android.view.View;
 import android.widget.Spinner;
 import android.widget.Toast;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
@@ -17,7 +16,7 @@ import com.risonliang.mfa.crypto.Base32;
 import com.risonliang.mfa.data.OtpRepository;
 import com.risonliang.mfa.model.OtpAccount;
 
-public class AddManualActivity extends AppCompatActivity {
+public class AddManualActivity extends BaseSecureActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

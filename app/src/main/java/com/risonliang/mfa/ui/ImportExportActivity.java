@@ -15,7 +15,6 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import com.google.android.material.button.MaterialButton;
 import com.risonliang.mfa.R;
@@ -26,7 +25,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
 
-public class ImportExportActivity extends AppCompatActivity {
+public class ImportExportActivity extends BaseSecureActivity {
 
     private ActivityResultLauncher<Intent> exportLauncher_;
     private ActivityResultLauncher<Intent> importLauncher_;

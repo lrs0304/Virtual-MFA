@@ -9,7 +9,6 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
@@ -28,7 +27,7 @@ import java.util.List;
  * 扫码 Activity：纯离线，不联网。
  * 使用原始 BarcodeView 而非 DecoratedBarcodeView，避免出现方向切换按钮等装饰控件。
  */
-public class ScanActivity extends AppCompatActivity {
+public class ScanActivity extends BaseSecureActivity {
 
     public static final String EXTRA_RESULT = "scan_result";
     private static final int REQ_CAMERA = 1001;

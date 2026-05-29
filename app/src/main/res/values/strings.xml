@@ -62,4 +62,21 @@
         <item>SHA256</item>
         <item>SHA512</item>
     </string-array>
+
+    <!-- 应用锁 -->
+    <string name="lock_setup_title">设置启动密码</string>
+    <string name="lock_setup_subtitle">首次使用，请设置 4-12 位数字密码用于启动验证</string>
+    <string name="lock_unlock_title">输入密码解锁</string>
+    <string name="lock_pin_hint">4-12 位数字密码</string>
+    <string name="lock_pin_confirm_hint">再次输入以确认</string>
+    <string name="lock_confirm">确定</string>
+    <string name="lock_use_biometric">使用指纹 / 面容解锁</string>
+    <string name="lock_pin_too_short">密码至少 4 位</string>
+    <string name="lock_pin_mismatch">两次输入不一致</string>
+    <string name="lock_pin_wrong">密码不正确</string>
+    <string name="lock_setup_done">密码已设置</string>
+    <string name="lock_biometric_title">生物识别解锁</string>
+    <string name="lock_biometric_subtitle">使用指纹或面容快速解锁</string>
+    <string name="lock_biometric_negative">使用密码</string>
+    <string name="lock_offline_tip">本应用完全离线运行，数据仅保存在本机</string>
 </resources>

@@ -33,7 +33,6 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -47,7 +46,7 @@ import com.risonliang.mfa.model.OtpAccount;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends BaseSecureActivity {
 
     private RecyclerView rvAccounts_;
     private TextView tvEmpty_;
@@ -110,6 +109,11 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         tickHandler_.removeCallbacks(tick_);
+        // 后台遮罩：进入后台前清空可见验证码，仅保留占位符；
+        // 配合 FLAG_SECURE，确保 Recents 缩略图与肩窥风险都被覆盖。
+        if (adapter_ != null) {
+            adapter_.maskAllCodes();
+        }
     }
 
     @Override
@@ -336,6 +340,9 @@ public class MainActivity extends AppCompatActivity {
 
         interface ItemAction { void on(OtpAccount acc); }
 
+        /** payload 标识：脱敏遮罩刷新。 */
+        private static final Object kPayloadMask = new Object();
+
         private final List<OtpAccount> data_;
         private final ItemAction onClick_;
         private final ItemAction onLong_;
@@ -372,6 +379,11 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
+        /** 脱敏所有 item 的验证码（后台遮罩用），并停掉进度条数值。 */
+        void maskAllCodes() {
+            notifyItemRangeChanged(0, getItemCount(), kPayloadMask);
+        }
+
         /** 仅刷新可见 item 的码与进度，避免整体重绘闪烁。 */
         void notifyTimeChanged() {
             notifyItemRangeChanged(0, getItemCount(), Boolean.TRUE);
@@ -381,7 +393,11 @@ public class MainActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull VH h, int position,
                                      @NonNull List<Object> payloads) {
             if (!payloads.isEmpty()) {
-                h.refreshCode(data_.get(position));
+                if (payloads.contains(kPayloadMask)) {
+                    h.maskCode();
+                } else {
+                    h.refreshCode(data_.get(position));
+                }
             } else {
                 onBindViewHolder(h, position);
             }
@@ -414,6 +430,13 @@ public class MainActivity extends AppCompatActivity {
                 tvIssuer_.setText(acc.issuer == null ? "" : acc.issuer);
                 tvAccount_.setText(acc.account == null ? "" : acc.account);
                 refreshCode(acc);
+            }
+
+            /** 后台遮罩：仅显示占位字符，不暴露真实验证码。 */
+            void maskCode() {
+                tvCode_.setText("•• ••• •••");
+                tvRemaining_.setText("");
+                pb_.setProgress(0);
             }
 
             void refreshCode(OtpAccount acc) {
