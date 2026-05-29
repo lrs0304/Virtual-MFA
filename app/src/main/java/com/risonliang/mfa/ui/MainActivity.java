@@ -7,6 +7,9 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.PorterDuff;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.LayerDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -250,9 +253,12 @@ public class MainActivity extends AppCompatActivity {
         }
 
         static final class VH extends RecyclerView.ViewHolder {
+            private static final int kWarnThresholdSec = 5;
+
             final TextView tvIssuer_;
             final TextView tvAccount_;
             final TextView tvCode_;
+            final TextView tvRemaining_;
             final ProgressBar pb_;
 
             VH(View v) {
@@ -260,6 +266,7 @@ public class MainActivity extends AppCompatActivity {
                 tvIssuer_ = v.findViewById(R.id.tv_issuer);
                 tvAccount_ = v.findViewById(R.id.tv_account);
                 tvCode_ = v.findViewById(R.id.tv_code);
+                tvRemaining_ = v.findViewById(R.id.tv_remaining);
                 pb_ = v.findViewById(R.id.pb_remaining);
             }
 
@@ -277,6 +284,31 @@ public class MainActivity extends AppCompatActivity {
                 int remain = OtpGenerator.remainingSeconds(acc.period, now);
                 pb_.setMax(acc.period);
                 pb_.setProgress(remain);
+
+                int colorRes = remain <= kWarnThresholdSec
+                        ? R.color.progress_warn
+                        : R.color.progress_active;
+                int color = androidx.core.content.ContextCompat.getColor(
+                        itemView.getContext(), colorRes);
+                tintProgress(pb_, color);
+                tvRemaining_.setTextColor(color);
+                tvRemaining_.setText(itemView.getContext().getString(
+                        R.string.fmt_remaining_seconds, remain));
+            }
+
+            /** 仅替换前景色，保留 layer-list 背景轨道色，避免整条进度条变色。 */
+            private void tintProgress(ProgressBar bar, int color) {
+                Drawable d = bar.getProgressDrawable();
+                if (d instanceof LayerDrawable) {
+                    Drawable progress = ((LayerDrawable) d).findDrawableByLayerId(
+                            android.R.id.progress);
+                    if (progress != null) {
+                        progress.mutate().setColorFilter(
+                                color, PorterDuff.Mode.SRC_IN);
+                    }
+                } else if (d != null) {
+                    d.mutate().setColorFilter(color, PorterDuff.Mode.SRC_IN);
+                }
             }
 
             private String formatCode(String code) {

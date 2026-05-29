@@ -17,4 +17,9 @@
     <color name="divider">#FFE0E0E0</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- OTP 倒计时进度条配色：剩余=绿色，已过去=浅灰，临近过期=橙红 -->
+    <color name="progress_active">#FF22C55E</color>
+    <color name="progress_track">#FFE5E7EB</color>
+    <color name="progress_warn">#FFEF4444</color>
 </resources>

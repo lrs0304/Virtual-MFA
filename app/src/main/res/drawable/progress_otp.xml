@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 risonliang. All rights reserved.
+
+  OTP 倒计时进度条样式：胶囊圆角 + 浅灰底 + 绿色填充。
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 背景轨道（已过去时间） -->
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <corners android:radius="2dp" />
+            <solid android:color="@color/progress_track" />
+        </shape>
+    </item>
+
+    <!-- 进度（剩余时间） -->
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape android:shape="rectangle">
+                <corners android:radius="2dp" />
+                <solid android:color="@color/progress_active" />
+            </shape>
+        </clip>
+    </item>
+</layer-list>
