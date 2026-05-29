@@ -1,0 +1,82 @@
+plugins {
+    alias(libs.plugins.android.application)
+}
+
+android {
+    namespace 'com.risonliang.mfa'
+    compileSdk {
+        version = release(36) {
+            minorApiLevel = 1
+        }
+    }
+
+    defaultConfig {
+        applicationId "com.risonliang.mfa"
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        // 仅保留必要 ABI / 资源以减小包体
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a'
+        }
+        resourceConfigurations += ['zh', 'en']
+        vectorDrawables.useSupportLibrary true
+    }
+
+    buildFeatures {
+        viewBinding true
+        buildConfig true
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+        }
+    }
+
+    packagingOptions {
+        resources {
+            excludes += [
+                    'META-INF/*.kotlin_module',
+                    'META-INF/AL2.0',
+                    'META-INF/LGPL2.1',
+                    'META-INF/DEPENDENCIES',
+                    'kotlin/**'
+            ]
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}
+
+dependencies {
+    implementation libs.appcompat
+    implementation libs.material
+    implementation libs.recyclerview
+    implementation libs.constraintlayout
+    implementation libs.security.crypto
+    implementation libs.biometric
+
+    // ZXing 扫码（轻量、离线）
+    implementation libs.zxing.embedded
+    implementation libs.zxing.core
+
+    // JSON 序列化（导入导出）
+    implementation libs.gson
+
+    testImplementation libs.junit
+    androidTestImplementation libs.ext.junit
+    androidTestImplementation libs.espresso.core
+}

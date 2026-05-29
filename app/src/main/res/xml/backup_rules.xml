@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 全量排除：MFA 数据不允许任何形式的云备份 -->
+<full-backup-content>
+    <exclude domain="database" path="."/>
+    <exclude domain="sharedpref" path="."/>
+    <exclude domain="file" path="."/>
+</full-backup-content>

@@ -1,0 +1,59 @@
+<resources>
+    <string name="app_name">MFA二次验证</string>
+
+    <!-- 标题 -->
+    <string name="title_main">我的验证码</string>
+    <string name="title_add_manual">手动添加</string>
+    <string name="title_scan">扫描二维码</string>
+    <string name="title_import_export">导入 / 导出</string>
+
+    <!-- 主页 -->
+    <string name="empty_tip">还没有任何账号，点击右下角添加</string>
+    <string name="action_scan">扫码添加</string>
+    <string name="action_manual">手动添加</string>
+    <string name="action_import_export">导入 / 导出</string>
+    <string name="hint_search">搜索账号</string>
+    <string name="copied">验证码已复制</string>
+
+    <!-- 手动添加 -->
+    <string name="hint_issuer">服务名称（如 Google）</string>
+    <string name="hint_account">账号（如 user@gmail.com）</string>
+    <string name="hint_secret">密钥（Base32）</string>
+    <string name="label_algorithm">算法</string>
+    <string name="label_digits">位数</string>
+    <string name="label_period">周期(秒)</string>
+    <string name="action_save">保存</string>
+    <string name="action_cancel">取消</string>
+    <string name="error_secret_invalid">密钥格式不合法（需 Base32）</string>
+    <string name="error_required">必填项不能为空</string>
+
+    <!-- 扫码 -->
+    <string name="scan_prompt">将二维码对准方框</string>
+    <string name="error_qr_invalid">无效的 OTP 二维码</string>
+    <string name="permission_camera_denied">需要相机权限才能扫码</string>
+
+    <!-- 导入导出 -->
+    <string name="action_export">导出加密备份</string>
+    <string name="action_import">从备份导入</string>
+    <string name="hint_password">备份密码（至少6位）</string>
+    <string name="hint_password_confirm">再次输入密码</string>
+    <string name="export_success">导出成功</string>
+    <string name="import_success">导入完成：%1$d 条</string>
+    <string name="export_failed">导出失败</string>
+    <string name="import_failed">导入失败：密码错误或文件损坏</string>
+    <string name="password_mismatch">两次密码输入不一致</string>
+    <string name="password_too_short">密码至少6位</string>
+
+    <!-- 删除 -->
+    <string name="action_delete">删除</string>
+    <string name="confirm_delete">确认删除该账号？此操作不可撤销。</string>
+    <string name="dialog_ok">确定</string>
+    <string name="dialog_cancel">取消</string>
+
+    <!-- 算法 -->
+    <string-array name="algo_array">
+        <item>SHA1</item>
+        <item>SHA256</item>
+        <item>SHA512</item>
+    </string-array>
+</resources>
