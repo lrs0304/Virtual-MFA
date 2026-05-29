@@ -80,6 +80,11 @@
     <string name="lock_change_new_subtitle">请输入新密码（4-12 位数字）</string>
     <string name="lock_change_done">密码已更新</string>
     <string name="lock_change_entry">修改应用密码</string>
+    <string name="lock_enable_entry">启用应用密码</string>
+    <string name="lock_disable_entry">关闭应用密码</string>
+    <string name="lock_disable_title">关闭应用密码</string>
+    <string name="lock_disable_subtitle">请输入当前密码以确认关闭</string>
+    <string name="lock_disable_done">应用密码已关闭</string>
     <string name="lock_biometric_title">生物识别解锁</string>
     <string name="lock_biometric_subtitle">使用指纹或面容快速解锁</string>
     <string name="lock_biometric_negative">使用密码</string>

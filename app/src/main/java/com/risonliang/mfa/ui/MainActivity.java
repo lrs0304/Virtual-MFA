@@ -103,6 +103,8 @@ public class MainActivity extends BaseSecureActivity {
         super.onResume();
         reload();
         tickHandler_.post(tick_);
+        // 应用密码启停可能在 LockActivity 中改变，回前台时刷新菜单可见性。
+        invalidateOptionsMenu();
     }
 
     @Override
@@ -123,15 +125,52 @@ public class MainActivity extends BaseSecureActivity {
     }
 
     @Override
+    public boolean onPrepareOptionsMenu(android.view.Menu menu) {
+        // 应用密码未启用：仅显示"启用"；已启用：显示"修改"+"关闭"。
+        boolean enabled =
+                com.risonliang.mfa.security.AppLockManager.get(this)
+                        .isLockEnabled();
+        android.view.MenuItem mEnable = menu.findItem(R.id.action_enable_pin);
+        android.view.MenuItem mChange = menu.findItem(R.id.action_change_pin);
+        android.view.MenuItem mDisable = menu.findItem(R.id.action_disable_pin);
+        if (mEnable != null) {
+            mEnable.setVisible(!enabled);
+        }
+        if (mChange != null) {
+            mChange.setVisible(enabled);
+        }
+        if (mDisable != null) {
+            mDisable.setVisible(enabled);
+        }
+        return super.onPrepareOptionsMenu(menu);
+    }
+
+    @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         int id = item.getItemId();
         if (id == R.id.action_import_export) {
             startActivity(new Intent(this, ImportExportActivity.class));
             return true;
         }
+        if (id == R.id.action_enable_pin) {
+            // 防御：若 prefs 中有残留 PIN（旧版本遗留 / 异常态），先彻底清掉，
+            // 确保 LockActivity 一定走 SETUP 流程而非自动弹出生物识别。
+            com.risonliang.mfa.security.AppLockManager.get(this)
+                    .clearAllSecrets();
+            Intent it = new Intent(this, LockActivity.class);
+            it.putExtra(LockActivity.EXTRA_MODE, LockActivity.MODE_SETUP);
+            startActivity(it);
+            return true;
+        }
         if (id == R.id.action_change_pin) {
             Intent it = new Intent(this, LockActivity.class);
             it.putExtra(LockActivity.EXTRA_MODE, LockActivity.MODE_CHANGE);
+            startActivity(it);
+            return true;
+        }
+        if (id == R.id.action_disable_pin) {
+            Intent it = new Intent(this, LockActivity.class);
+            it.putExtra(LockActivity.EXTRA_MODE, LockActivity.MODE_DISABLE);
             startActivity(it);
             return true;
         }

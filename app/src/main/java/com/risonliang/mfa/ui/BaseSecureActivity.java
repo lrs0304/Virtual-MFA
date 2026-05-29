@@ -53,7 +53,8 @@ public abstract class BaseSecureActivity extends AppCompatActivity {
             return;
         }
         AppLockManager lock = AppLockManager.get(this);
-        if (lock.shouldRequireUnlock()) {
+        // 由 manager 维护应用级前台计数：仅在 0->1 翻转时返回 true（真正回到前台）。
+        if (lock.onActivityStarted()) {
             Intent it = new Intent(this, LockActivity.class);
             it.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP
                     | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -62,10 +63,10 @@ public abstract class BaseSecureActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onPause() {
-        super.onPause();
+    protected void onStop() {
+        super.onStop();
         if (isLockEnforced()) {
-            AppLockManager.get(this).onAppBackgrounded();
+            AppLockManager.get(this).onActivityStopped();
         }
     }
 }
