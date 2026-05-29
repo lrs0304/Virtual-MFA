@@ -64,9 +64,9 @@
     </string-array>
 
     <!-- 应用锁 -->
-    <string name="lock_setup_title">设置启动密码</string>
-    <string name="lock_setup_subtitle">首次使用，请设置 4-12 位数字密码用于启动验证</string>
-    <string name="lock_unlock_title">输入密码解锁</string>
+    <string name="lock_setup_title">设置应用密码</string>
+    <string name="lock_setup_subtitle">首次使用，请设置 4-12 位数字密码用于解锁本应用</string>
+    <string name="lock_unlock_title">输入应用密码</string>
     <string name="lock_pin_hint">4-12 位数字密码</string>
     <string name="lock_pin_confirm_hint">再次输入以确认</string>
     <string name="lock_confirm">确定</string>
@@ -75,6 +75,11 @@
     <string name="lock_pin_mismatch">两次输入不一致</string>
     <string name="lock_pin_wrong">密码不正确</string>
     <string name="lock_setup_done">密码已设置</string>
+    <string name="lock_change_title">修改应用密码</string>
+    <string name="lock_change_old_subtitle">请先输入当前密码</string>
+    <string name="lock_change_new_subtitle">请输入新密码（4-12 位数字）</string>
+    <string name="lock_change_done">密码已更新</string>
+    <string name="lock_change_entry">修改应用密码</string>
     <string name="lock_biometric_title">生物识别解锁</string>
     <string name="lock_biometric_subtitle">使用指纹或面容快速解锁</string>
     <string name="lock_biometric_negative">使用密码</string>
