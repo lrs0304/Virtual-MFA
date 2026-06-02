@@ -17,6 +17,9 @@ import java.util.List;
 /**
  * 基于 SQLiteOpenHelper 的本地数据访问。
  * secret 字段强制加密存储（AES-256-GCM + Keystore），不允许明文。
+ *
+ * 注意：本类为进程级单例，内部持有 applicationContext 引用。
+ * applicationContext 的生命周期等于进程生命周期，不会导致 Activity 泄漏。
  */
 public final class OtpRepository {
 
