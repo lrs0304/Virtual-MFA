@@ -29,7 +29,7 @@ import java.util.List;
  */
 public final class BackupCodec {
 
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
     private static final int SALT_LEN = 16;
     private static final Gson GSON = new Gson();
 
@@ -67,9 +67,12 @@ public final class BackupCodec {
         BackupFile bf = GSON.fromJson(
                 new String(buf.toByteArray(), StandardCharsets.UTF_8),
                 BackupFile.class);
-        if (bf == null || bf.v != VERSION || bf.salt == null
-                || bf.data == null) {
+        if (bf == null || bf.salt == null || bf.data == null) {
             throw new IllegalStateException("invalid backup file");
+        }
+        // 兼容 v1 和 v2 格式
+        if (bf.v != 1 && bf.v != 2) {
+            throw new IllegalStateException("unsupported backup version: " + bf.v);
         }
         byte[] salt = Base64.decode(bf.salt, Base64.NO_WRAP);
         byte[] cipher = Base64.decode(bf.data, Base64.NO_WRAP);
