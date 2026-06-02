@@ -100,6 +100,28 @@ public final class OtpRepository {
         return list;
     }
 
+    /**
+     * 判断是否已存在相同账号（按 issuer + account + secret 组合判重）。
+     * 用于导入时去重，避免重复导入产生完全重复的条目。
+     */
+    public boolean exists(OtpAccount acc) throws Exception {
+        List<OtpAccount> all = listAll();
+        for (OtpAccount existing : all) {
+            if (equalsIgnoreNull(existing.issuer, acc.issuer)
+                    && equalsIgnoreNull(existing.account, acc.account)
+                    && equalsIgnoreNull(existing.secret, acc.secret)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean equalsIgnoreNull(String a, String b) {
+        if (a == null && b == null) return true;
+        if (a == null || b == null) return false;
+        return a.equals(b);
+    }
+
     private ContentValues toCv(OtpAccount acc) throws Exception {
         ContentValues cv = new ContentValues();
         cv.put(COL_ISSUER, acc.issuer == null ? "" : acc.issuer);

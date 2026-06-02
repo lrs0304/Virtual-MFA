@@ -42,6 +42,8 @@
     <!-- Google Authenticator 迁移 -->
     <string name="error_ga_migration_empty">未能从迁移二维码中解析出任何账号</string>
     <string name="ga_migration_success">成功导入 %1$d 个账号</string>
+    <string name="import_duplicate">该账号已存在，跳过导入</string>
+    <string name="import_skipped">跳过 %1$d 个已存在的账号</string>
 
     <!-- 导入导出 -->
     <string name="action_export">导出备份</string>

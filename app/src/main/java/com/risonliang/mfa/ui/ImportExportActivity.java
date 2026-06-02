@@ -337,9 +337,19 @@ public class ImportExportActivity extends BaseSecureActivity {
 
     private int persist(List<OtpAccount> list) throws Exception {
         int count = 0;
+        int skipped = 0;
         for (OtpAccount a : list) {
+            if (OtpRepository.get(this).exists(a)) {
+                skipped++;
+                continue;
+            }
             OtpRepository.get(this).insert(a);
             count++;
+        }
+        if (skipped > 0) {
+            Toast.makeText(this,
+                    getString(R.string.import_skipped, skipped),
+                    Toast.LENGTH_SHORT).show();
         }
         return count;
     }

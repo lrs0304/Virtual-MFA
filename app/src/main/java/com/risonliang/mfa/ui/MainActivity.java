@@ -338,6 +338,11 @@ public class MainActivity extends BaseSecureActivity {
             return;
         }
         try {
+            if (OtpRepository.get(this).exists(acc)) {
+                Toast.makeText(this, R.string.import_duplicate,
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
             OtpRepository.get(this).insert(acc);
             reload();
         } catch (Exception e) {
@@ -355,15 +360,22 @@ public class MainActivity extends BaseSecureActivity {
             return;
         }
         int success = 0;
+        int skipped = 0;
         for (OtpAccount acc : accounts) {
             try {
+                if (OtpRepository.get(this).exists(acc)) {
+                    skipped++;
+                    continue;
+                }
                 OtpRepository.get(this).insert(acc);
                 success++;
             } catch (Exception ignore) {}
         }
-        Toast.makeText(this,
-                getString(R.string.ga_migration_success, success),
-                Toast.LENGTH_SHORT).show();
+        String msg = getString(R.string.ga_migration_success, success);
+        if (skipped > 0) {
+            msg += "\n" + getString(R.string.import_skipped, skipped);
+        }
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
         reload();
     }
 
