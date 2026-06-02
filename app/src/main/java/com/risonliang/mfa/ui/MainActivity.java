@@ -217,14 +217,15 @@ public class MainActivity extends BaseSecureActivity {
             adapter_.notifyDataSetChanged();
             tvEmpty_.setVisibility(data_.isEmpty() ? View.VISIBLE : View.GONE);
         } catch (Exception e) {
-            Toast.makeText(this, "加载失败：" + e.getMessage(),
+            Toast.makeText(this,
+                    getString(R.string.error_load_failed, e.getMessage()),
                     Toast.LENGTH_SHORT).show();
         }
     }
 
     private void showAddSheet() {
         new AlertDialog.Builder(this)
-                .setTitle("添加账号")
+                .setTitle(R.string.title_add_account)
                 .setItems(new CharSequence[]{
                                 getString(R.string.action_scan),
                                 getString(R.string.action_from_album),
@@ -356,7 +357,8 @@ public class MainActivity extends BaseSecureActivity {
             OtpRepository.get(this).insert(acc);
             reload();
         } catch (Exception e) {
-            Toast.makeText(this, "保存失败：" + e.getMessage(),
+            Toast.makeText(this,
+                    getString(R.string.error_save_failed, e.getMessage()),
                     Toast.LENGTH_SHORT).show();
         }
     }
@@ -446,7 +448,9 @@ public class MainActivity extends BaseSecureActivity {
                         OtpRepository.get(this).update(acc);
                         reload();
                     } catch (Exception e) {
-                        Toast.makeText(this, "保存失败：" + e.getMessage(),
+                        Toast.makeText(this,
+                                getString(R.string.error_save_failed,
+                                        e.getMessage()),
                                 Toast.LENGTH_SHORT).show();
                     }
                 })

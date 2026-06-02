@@ -102,7 +102,8 @@ public class AddManualActivity extends BaseSecureActivity {
                     finish();
                 } catch (Exception e) {
                     Toast.makeText(AddManualActivity.this,
-                            "保存失败：" + e.getMessage(),
+                            getString(R.string.error_save_failed,
+                                    e.getMessage()),
                             Toast.LENGTH_SHORT).show();
                 }
             }

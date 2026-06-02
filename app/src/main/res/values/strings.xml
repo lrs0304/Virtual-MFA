@@ -16,6 +16,9 @@
     <string name="hint_search">搜索账号</string>
     <string name="copied">验证码已复制</string>
     <string name="fmt_remaining_seconds">%1$ds</string>
+    <string name="title_add_account">添加账号</string>
+    <string name="error_load_failed">加载失败：%1$s</string>
+    <string name="error_save_failed">保存失败：%1$s</string>
 
     <!-- 手动添加 -->
     <string name="hint_issuer">服务名称（如 Google）</string>
