@@ -40,6 +40,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.risonliang.mfa.R;
 import com.risonliang.mfa.crypto.OtpGenerator;
+import com.risonliang.mfa.data.GaMigrationDecoder;
 import com.risonliang.mfa.data.OtpRepository;
 import com.risonliang.mfa.data.OtpUriParser;
 import com.risonliang.mfa.model.OtpAccount;
@@ -211,6 +212,11 @@ public class MainActivity extends BaseSecureActivity {
     }
 
     private void handleScanResult(String content) {
+        // 先尝试解析为 Google Authenticator 迁移格式
+        if (GaMigrationDecoder.isMigrationUri(content)) {
+            handleGaMigration(content);
+            return;
+        }
         OtpAccount acc = OtpUriParser.parse(content);
         if (acc == null) {
             Toast.makeText(this, R.string.error_qr_invalid,
@@ -226,10 +232,45 @@ public class MainActivity extends BaseSecureActivity {
         }
     }
 
+    /** 处理 Google Authenticator 迁移二维码，批量导入。 */
+    private void handleGaMigration(String uri) {
+        List<OtpAccount> accounts = GaMigrationDecoder.decode(uri);
+        if (accounts.isEmpty()) {
+            Toast.makeText(this, R.string.error_ga_migration_empty,
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        int success = 0;
+        for (OtpAccount acc : accounts) {
+            try {
+                OtpRepository.get(this).insert(acc);
+                success++;
+            } catch (Exception ignore) {}
+        }
+        Toast.makeText(this,
+                getString(R.string.ga_migration_success, success),
+                Toast.LENGTH_SHORT).show();
+        reload();
+    }
+
     private void onItemClick(OtpAccount acc) {
         long now = System.currentTimeMillis();
-        String code = OtpGenerator.totp(acc.secret, acc.algorithm,
-                acc.digits, acc.period, now);
+        String code;
+        if (acc.isHotp()) {
+            // HOTP：点击时生成并递增计数器
+            code = OtpGenerator.hotp(acc.secret, acc.algorithm,
+                    acc.digits, acc.counter);
+            acc.counter = OtpRepository.get(this)
+                    .incrementCounter(acc.id, acc.counter);
+            // 刷新当前条目显示
+            int idx = data_.indexOf(acc);
+            if (idx >= 0) {
+                adapter_.notifyItemChanged(idx);
+            }
+        } else {
+            code = OtpGenerator.totp(acc.secret, acc.algorithm,
+                    acc.digits, acc.period, now);
+        }
         ClipboardManager cm = (ClipboardManager) getSystemService(
                 Context.CLIPBOARD_SERVICE);
         if (cm != null) {
@@ -485,23 +526,38 @@ public class MainActivity extends BaseSecureActivity {
             }
 
             void refreshCode(OtpAccount acc) {
-                long now = System.currentTimeMillis();
-                String code = OtpGenerator.totp(acc.secret, acc.algorithm,
-                        acc.digits, acc.period, now);
-                tvCode_.setText(formatCode(code));
-                int remain = OtpGenerator.remainingSeconds(acc.period, now);
-                pb_.setMax(acc.period);
-                pb_.setProgress(remain);
+                if (acc.isHotp()) {
+                    // HOTP：显示当前计数器对应的验证码，无倒计时
+                    String code = OtpGenerator.hotp(acc.secret, acc.algorithm,
+                            acc.digits, acc.counter);
+                    tvCode_.setText(formatCode(code));
+                    tvRemaining_.setText(itemView.getContext().getString(
+                            R.string.hotp_tap_hint));
+                    int color = androidx.core.content.ContextCompat.getColor(
+                            itemView.getContext(), R.color.progress_active);
+                    tvRemaining_.setTextColor(color);
+                    pb_.setVisibility(View.GONE);
+                } else {
+                    // TOTP：正常倒计时逻辑
+                    pb_.setVisibility(View.VISIBLE);
+                    long now = System.currentTimeMillis();
+                    String code = OtpGenerator.totp(acc.secret, acc.algorithm,
+                            acc.digits, acc.period, now);
+                    tvCode_.setText(formatCode(code));
+                    int remain = OtpGenerator.remainingSeconds(acc.period, now);
+                    pb_.setMax(acc.period);
+                    pb_.setProgress(remain);
 
-                int colorRes = remain <= kWarnThresholdSec
-                        ? R.color.progress_warn
-                        : R.color.progress_active;
-                int color = androidx.core.content.ContextCompat.getColor(
-                        itemView.getContext(), colorRes);
-                tintProgress(pb_, color);
-                tvRemaining_.setTextColor(color);
-                tvRemaining_.setText(itemView.getContext().getString(
-                        R.string.fmt_remaining_seconds, remain));
+                    int colorRes = remain <= kWarnThresholdSec
+                            ? R.color.progress_warn
+                            : R.color.progress_active;
+                    int color = androidx.core.content.ContextCompat.getColor(
+                            itemView.getContext(), colorRes);
+                    tintProgress(pb_, color);
+                    tvRemaining_.setTextColor(color);
+                    tvRemaining_.setText(itemView.getContext().getString(
+                            R.string.fmt_remaining_seconds, remain));
+                }
             }
 
             /** 仅替换前景色，保留 layer-list 背景轨道色，避免整条进度条变色。 */

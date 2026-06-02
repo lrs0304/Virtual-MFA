@@ -5,8 +5,12 @@ package com.risonliang.mfa.model;
 
 /**
  * OTP 账号实体。secret 字段在数据库中以加密 + Base64 形式存储。
+ * 支持 TOTP（基于时间）和 HOTP（基于计数器）两种类型。
  */
 public class OtpAccount {
+
+    public static final String TYPE_TOTP = "totp";
+    public static final String TYPE_HOTP = "hotp";
 
     public static final String DEFAULT_ALGO = "SHA1";
     public static final int DEFAULT_DIGITS = 6;
@@ -16,16 +20,23 @@ public class OtpAccount {
     public String issuer;       // 服务名（如 Google）
     public String account;      // 账号（如 user@gmail.com）
     public String secret;       // Base32 明文密钥（仅在内存中持有）
+    public String type;         // totp 或 hotp
     public String algorithm;    // SHA1 / SHA256 / SHA512
     public int digits;
     public int period;
+    public long counter;        // HOTP 计数器（仅 HOTP 使用）
     public long createdAt;
     public int sortOrder;
 
     public OtpAccount() {
+        this.type = TYPE_TOTP;
         this.algorithm = DEFAULT_ALGO;
         this.digits = DEFAULT_DIGITS;
         this.period = DEFAULT_PERIOD;
+    }
+
+    public boolean isHotp() {
+        return TYPE_HOTP.equalsIgnoreCase(type);
     }
 
     public String displayLabel() {

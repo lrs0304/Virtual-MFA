@@ -100,18 +100,22 @@ public final class BackupCodec {
         String issuer;
         String account;
         String secret;
+        String type;
         String algorithm;
         int digits;
         int period;
+        long counter;
 
         static Item from(OtpAccount a) {
             Item it = new Item();
             it.issuer = a.issuer;
             it.account = a.account;
             it.secret = a.secret;
+            it.type = a.type;
             it.algorithm = a.algorithm;
             it.digits = a.digits;
             it.period = a.period;
+            it.counter = a.counter;
             return it;
         }
 
@@ -120,10 +124,13 @@ public final class BackupCodec {
             a.issuer = issuer;
             a.account = account;
             a.secret = secret;
+            a.type = (type == null || type.isEmpty())
+                    ? OtpAccount.TYPE_TOTP : type;
             a.algorithm = algorithm == null ? OtpAccount.DEFAULT_ALGO
                     : algorithm;
             a.digits = digits == 0 ? OtpAccount.DEFAULT_DIGITS : digits;
             a.period = period == 0 ? OtpAccount.DEFAULT_PERIOD : period;
+            a.counter = counter;
             return a;
         }
     }

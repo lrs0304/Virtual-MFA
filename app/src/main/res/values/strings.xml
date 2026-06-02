@@ -20,9 +20,11 @@
     <string name="hint_issuer">服务名称（如 Google）</string>
     <string name="hint_account">账号（如 user@gmail.com）</string>
     <string name="hint_secret">密钥（Base32）</string>
+    <string name="label_type">类型</string>
     <string name="label_algorithm">算法</string>
     <string name="label_digits">位数</string>
     <string name="label_period">周期(秒)</string>
+    <string name="label_counter">计数器</string>
     <string name="action_save">保存</string>
     <string name="action_cancel">取消</string>
     <string name="error_secret_invalid">密钥格式不合法（需 Base32）</string>
@@ -32,6 +34,10 @@
     <string name="scan_prompt">将二维码对准方框</string>
     <string name="error_qr_invalid">无效的 OTP 二维码</string>
     <string name="permission_camera_denied">需要相机权限才能扫码</string>
+
+    <!-- Google Authenticator 迁移 -->
+    <string name="error_ga_migration_empty">未能从迁移二维码中解析出任何账号</string>
+    <string name="ga_migration_success">成功导入 %1$d 个账号</string>
 
     <!-- 导入导出 -->
     <string name="action_export">导出备份</string>
@@ -73,6 +79,15 @@
         <item>SHA256</item>
         <item>SHA512</item>
     </string-array>
+
+    <!-- OTP 类型 -->
+    <string-array name="type_array">
+        <item>TOTP（基于时间）</item>
+        <item>HOTP（基于计数器）</item>
+    </string-array>
+
+    <!-- HOTP -->
+    <string name="hotp_tap_hint">点击刷新</string>
 
     <!-- 应用锁 -->
     <string name="lock_setup_title">设置应用密码</string>

@@ -30,7 +30,8 @@ import java.util.Map;
 public final class CsvBackup {
 
     private static final String[] HEADERS = {
-            "issuer", "account", "secret", "algorithm", "digits", "period"
+            "issuer", "account", "secret", "type", "algorithm",
+            "digits", "period", "counter"
     };
 
     private CsvBackup() {}
@@ -45,11 +46,13 @@ public final class CsvBackup {
                     nullToEmpty(a.issuer),
                     nullToEmpty(a.account),
                     nullToEmpty(a.secret),
+                    a.type == null ? OtpAccount.TYPE_TOTP : a.type,
                     a.algorithm == null ? OtpAccount.DEFAULT_ALGO : a.algorithm,
                     Integer.toString(a.digits == 0
                             ? OtpAccount.DEFAULT_DIGITS : a.digits),
                     Integer.toString(a.period == 0
-                            ? OtpAccount.DEFAULT_PERIOD : a.period)
+                            ? OtpAccount.DEFAULT_PERIOD : a.period),
+                    Long.toString(a.counter)
             });
         }
         w.flush();
@@ -88,6 +91,9 @@ public final class CsvBackup {
             a.issuer = cell(row, idx, "issuer");
             a.account = cell(row, idx, "account");
             a.secret = secret;
+            String type = cell(row, idx, "type");
+            a.type = (type == null || type.isEmpty())
+                    ? OtpAccount.TYPE_TOTP : type.toLowerCase();
             String algo = cell(row, idx, "algorithm");
             a.algorithm = (algo == null || algo.isEmpty())
                     ? OtpAccount.DEFAULT_ALGO : algo.toUpperCase();
@@ -95,6 +101,7 @@ public final class CsvBackup {
                     OtpAccount.DEFAULT_DIGITS);
             a.period = parseIntOr(cell(row, idx, "period"),
                     OtpAccount.DEFAULT_PERIOD);
+            a.counter = parseLongOr(cell(row, idx, "counter"), 0);
             result.add(a);
         }
         return result;
@@ -133,6 +140,17 @@ public final class CsvBackup {
         }
         try {
             return Integer.parseInt(s.trim());
+        } catch (NumberFormatException e) {
+            return def;
+        }
+    }
+
+    private static long parseLongOr(String s, long def) {
+        if (s == null || s.isEmpty()) {
+            return def;
+        }
+        try {
+            return Long.parseLong(s.trim());
         } catch (NumberFormatException e) {
             return def;
         }

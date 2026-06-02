@@ -40,8 +40,26 @@ public class AddManualActivity extends BaseSecureActivity {
         TextInputEditText etDigits = findViewById(R.id.et_digits);
         TextInputEditText etPeriod = findViewById(R.id.et_period);
         Spinner spAlgo = findViewById(R.id.sp_algorithm);
+        Spinner spType = findViewById(R.id.sp_type);
+        View layoutPeriod = findViewById(R.id.layout_period);
+        View layoutCounter = findViewById(R.id.layout_counter);
+        TextInputEditText etCounter = findViewById(R.id.et_counter);
         MaterialButton btnSave = findViewById(R.id.btn_save);
         MaterialButton btnCancel = findViewById(R.id.btn_cancel);
+
+        // 根据类型切换周期/计数器输入框的可见性
+        spType.setOnItemSelectedListener(
+                new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent,
+                                       View view, int position, long id) {
+                boolean isHotp = position == 1; // 0=TOTP, 1=HOTP
+                layoutPeriod.setVisibility(isHotp ? View.GONE : View.VISIBLE);
+                layoutCounter.setVisibility(isHotp ? View.VISIBLE : View.GONE);
+            }
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
 
         btnCancel.setOnClickListener(v -> finish());
         btnSave.setOnClickListener(new View.OnClickListener() {
@@ -68,8 +86,17 @@ public class AddManualActivity extends BaseSecureActivity {
                 acc.algorithm = spAlgo.getSelectedItem().toString();
                 acc.digits = parseInt(textOf(etDigits),
                         OtpAccount.DEFAULT_DIGITS);
-                acc.period = parseInt(textOf(etPeriod),
-                        OtpAccount.DEFAULT_PERIOD);
+                // 类型：0=TOTP, 1=HOTP
+                boolean isHotp = spType.getSelectedItemPosition() == 1;
+                acc.type = isHotp ? OtpAccount.TYPE_HOTP
+                        : OtpAccount.TYPE_TOTP;
+                if (isHotp) {
+                    acc.counter = parseLong(textOf(etCounter), 0);
+                    acc.period = OtpAccount.DEFAULT_PERIOD;
+                } else {
+                    acc.period = parseInt(textOf(etPeriod),
+                            OtpAccount.DEFAULT_PERIOD);
+                }
                 try {
                     OtpRepository.get(AddManualActivity.this).insert(acc);
                     finish();
@@ -95,6 +122,14 @@ public class AddManualActivity extends BaseSecureActivity {
     private static int parseInt(String s, int def) {
         try {
             return Integer.parseInt(s);
+        } catch (Exception ignore) {
+            return def;
+        }
+    }
+
+    private static long parseLong(String s, long def) {
+        try {
+            return Long.parseLong(s);
         } catch (Exception ignore) {
             return def;
         }

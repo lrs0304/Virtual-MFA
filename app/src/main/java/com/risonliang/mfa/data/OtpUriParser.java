@@ -13,7 +13,9 @@ import java.util.Map;
 
 /**
  * otpauth URI 解析器。
+ * 支持 TOTP 和 HOTP 两种类型。
  * 标准格式：otpauth://totp/Issuer:account?secret=XXX&issuer=Issuer&algorithm=SHA1&digits=6&period=30
+ *          otpauth://hotp/Issuer:account?secret=XXX&issuer=Issuer&counter=0
  */
 public final class OtpUriParser {
 
@@ -29,12 +31,17 @@ public final class OtpUriParser {
             return null;
         }
         String type = uri.getHost();
-        if (type == null || !"totp".equalsIgnoreCase(type)) {
-            // 仅支持 TOTP（HOTP 用户量极小，省体积）
+        if (type == null) {
+            return null;
+        }
+        boolean isTotp = "totp".equalsIgnoreCase(type);
+        boolean isHotp = "hotp".equalsIgnoreCase(type);
+        if (!isTotp && !isHotp) {
             return null;
         }
 
         OtpAccount acc = new OtpAccount();
+        acc.type = isHotp ? OtpAccount.TYPE_HOTP : OtpAccount.TYPE_TOTP;
         // path 形如 /Issuer:account 或 /account
         String path = uri.getPath();
         if (path != null && path.startsWith("/")) {
@@ -76,6 +83,11 @@ public final class OtpUriParser {
         if (params.containsKey("period")) {
             try {
                 acc.period = Integer.parseInt(params.get("period"));
+            } catch (NumberFormatException ignore) {}
+        }
+        if (params.containsKey("counter")) {
+            try {
+                acc.counter = Long.parseLong(params.get("counter"));
             } catch (NumberFormatException ignore) {}
         }
         return acc;

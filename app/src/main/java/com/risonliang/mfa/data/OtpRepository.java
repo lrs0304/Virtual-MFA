@@ -21,7 +21,7 @@ import java.util.List;
 public final class OtpRepository {
 
     private static final String DB_NAME = "mfa.db";
-    private static final int DB_VERSION = 1;
+    private static final int DB_VERSION = 2;
     private static final String TABLE = "otp_account";
 
     private static final String COL_ID = "id";
@@ -33,6 +33,8 @@ public final class OtpRepository {
     private static final String COL_PERIOD = "period";
     private static final String COL_CREATED = "created_at";
     private static final String COL_SORT = "sort_order";
+    private static final String COL_TYPE = "type";
+    private static final String COL_COUNTER = "counter";
 
     private static volatile OtpRepository sInstance;
     private final DbHelper helper_;
@@ -74,6 +76,17 @@ public final class OtpRepository {
                 new String[]{String.valueOf(id)});
     }
 
+    /** HOTP 专用：递增计数器并返回新值。 */
+    public long incrementCounter(long id, long currentCounter) {
+        long next = currentCounter + 1;
+        android.content.ContentValues cv = new android.content.ContentValues();
+        cv.put(COL_COUNTER, next);
+        SQLiteDatabase db = helper_.getWritableDatabase();
+        db.update(TABLE, cv, COL_ID + "=?",
+                new String[]{String.valueOf(id)});
+        return next;
+    }
+
     /** 列出所有账号（已解密）。 */
     public List<OtpAccount> listAll() throws Exception {
         List<OtpAccount> list = new ArrayList<>();
@@ -97,6 +110,8 @@ public final class OtpRepository {
         cv.put(COL_ALGO, acc.algorithm);
         cv.put(COL_DIGITS, acc.digits);
         cv.put(COL_PERIOD, acc.period);
+        cv.put(COL_TYPE, acc.type == null ? OtpAccount.TYPE_TOTP : acc.type);
+        cv.put(COL_COUNTER, acc.counter);
         cv.put(COL_CREATED,
                 acc.createdAt == 0 ? System.currentTimeMillis() : acc.createdAt);
         cv.put(COL_SORT, acc.sortOrder);
@@ -115,6 +130,12 @@ public final class OtpRepository {
         a.algorithm = c.getString(c.getColumnIndexOrThrow(COL_ALGO));
         a.digits = c.getInt(c.getColumnIndexOrThrow(COL_DIGITS));
         a.period = c.getInt(c.getColumnIndexOrThrow(COL_PERIOD));
+        int typeIdx = c.getColumnIndex(COL_TYPE);
+        a.type = (typeIdx >= 0 && !c.isNull(typeIdx))
+                ? c.getString(typeIdx) : OtpAccount.TYPE_TOTP;
+        int counterIdx = c.getColumnIndex(COL_COUNTER);
+        a.counter = (counterIdx >= 0 && !c.isNull(counterIdx))
+                ? c.getLong(counterIdx) : 0;
         a.createdAt = c.getLong(c.getColumnIndexOrThrow(COL_CREATED));
         a.sortOrder = c.getInt(c.getColumnIndexOrThrow(COL_SORT));
         return a;
@@ -136,12 +157,19 @@ public final class OtpRepository {
                     + COL_DIGITS + " INTEGER, "
                     + COL_PERIOD + " INTEGER, "
                     + COL_CREATED + " INTEGER, "
+                    + COL_TYPE + " TEXT DEFAULT 'totp', "
+                    + COL_COUNTER + " INTEGER DEFAULT 0, "
                     + COL_SORT + " INTEGER DEFAULT 0)");
         }
 
         @Override
         public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-            // 预留升级位
+            if (oldVersion < 2) {
+                db.execSQL("ALTER TABLE " + TABLE
+                        + " ADD COLUMN " + COL_TYPE + " TEXT DEFAULT 'totp'");
+                db.execSQL("ALTER TABLE " + TABLE
+                        + " ADD COLUMN " + COL_COUNTER + " INTEGER DEFAULT 0");
+            }
         }
     }
 }

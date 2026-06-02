@@ -34,7 +34,22 @@ public final class OtpGenerator {
                               int period, long timeMs) {
         long counter = (timeMs / 1000L) / period;
         byte[] key = Base32.decode(secret);
-        return hotp(key, counter, algorithm, digits);
+        return hotpInternal(key, counter, algorithm, digits);
+    }
+
+    /**
+     * 生成 HOTP 验证码（RFC 4226）。
+     *
+     * @param secret    Base32 编码的密钥
+     * @param algorithm SHA1 / SHA256 / SHA512
+     * @param digits    验证码位数
+     * @param counter   计数器值
+     * @return 验证码字符串（左侧补零）
+     */
+    public static String hotp(String secret, String algorithm, int digits,
+                              long counter) {
+        byte[] key = Base32.decode(secret);
+        return hotpInternal(key, counter, algorithm, digits);
     }
 
     /** 计算 TOTP 在当前周期内剩余秒数。 */
@@ -48,8 +63,8 @@ public final class OtpGenerator {
         return (timeMs / 1000L) / period;
     }
 
-    private static String hotp(byte[] key, long counter, String algorithm,
-                               int digits) {
+    private static String hotpInternal(byte[] key, long counter,
+                                        String algorithm, int digits) {
         try {
             byte[] data = ByteBuffer.allocate(8).putLong(counter).array();
             String macAlgo = mapMacAlgo(algorithm);
