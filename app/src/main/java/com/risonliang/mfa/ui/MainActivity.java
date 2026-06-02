@@ -55,6 +55,8 @@ import com.risonliang.mfa.model.OtpAccount;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends BaseSecureActivity {
 
@@ -65,6 +67,8 @@ public class MainActivity extends BaseSecureActivity {
     private final Handler tickHandler_ = new Handler(Looper.getMainLooper());
     private ActivityResultLauncher<Intent> scanLauncher_;
     private ActivityResultLauncher<String> albumLauncher_;
+    private final ExecutorService bgExecutor_ =
+            Executors.newSingleThreadExecutor();
 
     private final Runnable tick_ = new Runnable() {
         @Override
@@ -232,21 +236,71 @@ public class MainActivity extends BaseSecureActivity {
         scanLauncher_.launch(new Intent(this, ScanActivity.class));
     }
 
-    /** 从相册选取的图片中解码二维码。 */
+    /**
+     * 从相册选取的图片中解码二维码。
+     * 在后台线程执行图片解码和二维码识别，避免阻塞 UI 线程导致 ANR。
+     * 同时对大图片进行降采样，防止 OOM。
+     */
     private void decodeQrFromImage(Uri imageUri) {
+        Toast.makeText(this, R.string.decoding_image,
+                Toast.LENGTH_SHORT).show();
+        bgExecutor_.execute(() -> {
+            String decoded = decodeQrInBackground(imageUri);
+            runOnUiThread(() -> {
+                if (decoded == null) {
+                    // 错误已在后台方法中标记，此处不重复提示
+                } else if (decoded.isEmpty()) {
+                    Toast.makeText(this, R.string.error_qr_not_found,
+                            Toast.LENGTH_SHORT).show();
+                } else {
+                    handleScanResult(decoded);
+                }
+            });
+        });
+    }
+
+    /**
+     * 后台线程：读取图片、降采样、解码二维码。
+     * @return 解码内容；空字符串表示未找到二维码；null 表示读取失败（已 Toast）。
+     */
+    private String decodeQrInBackground(Uri imageUri) {
         try {
-            InputStream is = getContentResolver().openInputStream(imageUri);
-            if (is == null) {
-                Toast.makeText(this, R.string.error_image_read,
-                        Toast.LENGTH_SHORT).show();
-                return;
+            // 第一遍：仅读取尺寸，不加载像素
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inJustDecodeBounds = true;
+            try (InputStream is = getContentResolver().openInputStream(imageUri)) {
+                if (is == null) {
+                    runOnUiThread(() -> Toast.makeText(this,
+                            R.string.error_image_read,
+                            Toast.LENGTH_SHORT).show());
+                    return null;
+                }
+                BitmapFactory.decodeStream(is, null, opts);
             }
-            Bitmap bitmap = BitmapFactory.decodeStream(is);
-            is.close();
+            // 计算降采样比例：目标最大边 1200px（足够识别二维码）
+            int maxDim = Math.max(opts.outWidth, opts.outHeight);
+            int sampleSize = 1;
+            while (maxDim / sampleSize > 1200) {
+                sampleSize *= 2;
+            }
+            // 第二遍：按降采样比例加载
+            opts.inJustDecodeBounds = false;
+            opts.inSampleSize = sampleSize;
+            Bitmap bitmap;
+            try (InputStream is = getContentResolver().openInputStream(imageUri)) {
+                if (is == null) {
+                    runOnUiThread(() -> Toast.makeText(this,
+                            R.string.error_image_read,
+                            Toast.LENGTH_SHORT).show());
+                    return null;
+                }
+                bitmap = BitmapFactory.decodeStream(is, null, opts);
+            }
             if (bitmap == null) {
-                Toast.makeText(this, R.string.error_image_read,
-                        Toast.LENGTH_SHORT).show();
-                return;
+                runOnUiThread(() -> Toast.makeText(this,
+                        R.string.error_image_read,
+                        Toast.LENGTH_SHORT).show());
+                return null;
             }
             int width = bitmap.getWidth();
             int height = bitmap.getHeight();
@@ -260,18 +314,14 @@ public class MainActivity extends BaseSecureActivity {
                     new BinaryBitmap(new HybridBinarizer(source));
             Result result = new MultiFormatReader().decode(binaryBitmap);
             String content = result.getText();
-            if (content == null || content.isEmpty()) {
-                Toast.makeText(this, R.string.error_qr_not_found,
-                        Toast.LENGTH_SHORT).show();
-                return;
-            }
-            handleScanResult(content);
+            return (content == null) ? "" : content;
         } catch (com.google.zxing.NotFoundException e) {
-            Toast.makeText(this, R.string.error_qr_not_found,
-                    Toast.LENGTH_SHORT).show();
+            return "";
         } catch (Exception e) {
-            Toast.makeText(this, R.string.error_image_read,
-                    Toast.LENGTH_SHORT).show();
+            runOnUiThread(() -> Toast.makeText(this,
+                    R.string.error_image_read,
+                    Toast.LENGTH_SHORT).show());
+            return null;
         }
     }
 
