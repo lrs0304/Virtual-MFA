@@ -4,6 +4,7 @@
 package com.risonliang.mfa.data;
 
 import android.util.Base64;
+import com.risonliang.mfa.crypto.Base32;
 import com.risonliang.mfa.model.OtpAccount;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -205,7 +206,7 @@ public final class GaMigrationDecoder {
 
         OtpAccount acc = new OtpAccount();
         // GA 存储的 secret 是原始字节，需要编码为 Base32
-        acc.secret = encodeBase32(secret);
+        acc.secret = Base32.encode(secret);
 
         // 解析 name 字段：格式可能是 "Issuer:account" 或纯 "account"
         if (name != null && !name.isEmpty()) {
@@ -333,37 +334,5 @@ public final class GaMigrationDecoder {
             default:
                 return data.length; // 无法识别，跳到末尾
         }
-    }
-
-    // ========== Base32 编码（将原始字节编码为 Base32 字符串） ==========
-
-    private static final char[] BASE32_CHARS = {
-            'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
-            'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
-            'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
-            'Y', 'Z', '2', '3', '4', '5', '6', '7'
-    };
-
-    private static String encodeBase32(byte[] data) {
-        if (data == null || data.length == 0) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder((data.length * 8 + 4) / 5);
-        int buffer = 0;
-        int bitsLeft = 0;
-        for (byte b : data) {
-            buffer = (buffer << 8) | (b & 0xFF);
-            bitsLeft += 8;
-            while (bitsLeft >= 5) {
-                int index = (buffer >> (bitsLeft - 5)) & 0x1F;
-                sb.append(BASE32_CHARS[index]);
-                bitsLeft -= 5;
-            }
-        }
-        if (bitsLeft > 0) {
-            int index = (buffer << (5 - bitsLeft)) & 0x1F;
-            sb.append(BASE32_CHARS[index]);
-        }
-        return sb.toString();
     }
 }

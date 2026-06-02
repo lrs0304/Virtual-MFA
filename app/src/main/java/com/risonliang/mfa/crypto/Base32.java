@@ -72,4 +72,28 @@ public final class Base32 {
             return false;
         }
     }
+
+    /** 将原始字节数组编码为 Base32 字符串（不含 padding）。 */
+    public static String encode(byte[] data) {
+        if (data == null || data.length == 0) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder((data.length * 8 + 4) / 5);
+        int buffer = 0;
+        int bitsLeft = 0;
+        for (byte b : data) {
+            buffer = (buffer << 8) | (b & 0xFF);
+            bitsLeft += 8;
+            while (bitsLeft >= 5) {
+                int index = (buffer >> (bitsLeft - 5)) & 0x1F;
+                sb.append(ALPHABET[index]);
+                bitsLeft -= 5;
+            }
+        }
+        if (bitsLeft > 0) {
+            int index = (buffer << (5 - bitsLeft)) & 0x1F;
+            sb.append(ALPHABET[index]);
+        }
+        return sb.toString();
+    }
 }
