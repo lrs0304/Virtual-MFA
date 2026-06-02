@@ -73,8 +73,18 @@ public class MainActivity extends BaseSecureActivity {
     private final Runnable tick_ = new Runnable() {
         @Override
         public void run() {
-            if (adapter_ != null) {
-                adapter_.notifyTimeChanged();
+            if (adapter_ != null && rvAccounts_ != null) {
+                // 仅刷新当前可见范围内的条目，避免全量刷新
+                LinearLayoutManager lm = (LinearLayoutManager)
+                        rvAccounts_.getLayoutManager();
+                if (lm != null) {
+                    int first = lm.findFirstVisibleItemPosition();
+                    int last = lm.findLastVisibleItemPosition();
+                    if (first >= 0 && last >= first) {
+                        adapter_.notifyItemRangeChanged(
+                                first, last - first + 1, Boolean.TRUE);
+                    }
+                }
             }
             tickHandler_.postDelayed(this, 1000L);
         }
