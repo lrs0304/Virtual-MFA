@@ -83,6 +83,9 @@ public final class GaMigrationDecoder {
                 // length-delimited: OtpParameters
                 int len = readVarint32(data, pos);
                 pos += varintSize(data, pos);
+                if (len < 0 || pos + len > data.length) {
+                    break; // 数据被篡改，长度越界，终止解析
+                }
                 byte[] sub = new byte[len];
                 System.arraycopy(data, pos, sub, 0, len);
                 pos += len;
@@ -122,6 +125,9 @@ public final class GaMigrationDecoder {
                     if (wireType == 2) {
                         int len = readVarint32(data, pos);
                         pos += varintSize(data, pos);
+                        if (len < 0 || pos + len > data.length) {
+                            return null;
+                        }
                         secret = new byte[len];
                         System.arraycopy(data, pos, secret, 0, len);
                         pos += len;
@@ -133,6 +139,9 @@ public final class GaMigrationDecoder {
                     if (wireType == 2) {
                         int len = readVarint32(data, pos);
                         pos += varintSize(data, pos);
+                        if (len < 0 || pos + len > data.length) {
+                            return null;
+                        }
                         name = new String(data, pos, len, StandardCharsets.UTF_8);
                         pos += len;
                     } else {
@@ -143,6 +152,9 @@ public final class GaMigrationDecoder {
                     if (wireType == 2) {
                         int len = readVarint32(data, pos);
                         pos += varintSize(data, pos);
+                        if (len < 0 || pos + len > data.length) {
+                            return null;
+                        }
                         issuer = new String(data, pos, len, StandardCharsets.UTF_8);
                         pos += len;
                     } else {
@@ -306,15 +318,18 @@ public final class GaMigrationDecoder {
                 while (pos < data.length && (data[pos] & 0x80) != 0) {
                     pos++;
                 }
-                return pos + 1;
+                return Math.min(pos + 1, data.length);
             case 1: // 64-bit
-                return pos + 8;
+                return Math.min(pos + 8, data.length);
             case 2: // length-delimited
                 int len = readVarint32(data, pos);
                 pos += varintSize(data, pos);
+                if (len < 0 || pos + len > data.length) {
+                    return data.length;
+                }
                 return pos + len;
             case 5: // 32-bit
-                return pos + 4;
+                return Math.min(pos + 4, data.length);
             default:
                 return data.length; // 无法识别，跳到末尾
         }
