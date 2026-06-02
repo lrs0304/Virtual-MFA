@@ -39,6 +39,31 @@ public class OtpAccount {
         return TYPE_HOTP.equalsIgnoreCase(type);
     }
 
+    /**
+     * 校验账号数据是否合法。
+     * @return true 表示数据完整且合法，可安全用于 OTP 生成。
+     */
+    public boolean isValid() {
+        if (secret == null || secret.isEmpty()) {
+            return false;
+        }
+        if (digits < 4 || digits > 8) {
+            return false;
+        }
+        if (!isHotp() && (period < 10 || period > 300)) {
+            return false;
+        }
+        if (isHotp() && counter < 0) {
+            return false;
+        }
+        String algo = (algorithm == null) ? "" : algorithm.toUpperCase();
+        if (!algo.equals("SHA1") && !algo.equals("SHA256")
+                && !algo.equals("SHA512")) {
+            return false;
+        }
+        return true;
+    }
+
     public String displayLabel() {
         if (issuer == null || issuer.isEmpty()) {
             return account == null ? "" : account;
