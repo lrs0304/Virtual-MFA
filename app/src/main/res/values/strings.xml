@@ -10,6 +10,7 @@
     <!-- 主页 -->
     <string name="empty_tip">还没有任何账号，点击右下角添加</string>
     <string name="action_scan">扫码添加</string>
+    <string name="action_from_album">从相册导入</string>
     <string name="action_manual">手动添加</string>
     <string name="action_import_export">导入 / 导出</string>
     <string name="hint_search">搜索账号</string>
@@ -33,6 +34,8 @@
     <!-- 扫码 -->
     <string name="scan_prompt">将二维码对准方框</string>
     <string name="error_qr_invalid">无效的 OTP 二维码</string>
+    <string name="error_qr_not_found">未在图片中识别到二维码</string>
+    <string name="error_image_read">无法读取所选图片</string>
     <string name="permission_camera_denied">需要相机权限才能扫码</string>
 
     <!-- Google Authenticator 迁移 -->

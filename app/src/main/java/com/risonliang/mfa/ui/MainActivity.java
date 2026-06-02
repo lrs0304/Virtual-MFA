@@ -7,6 +7,8 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -16,6 +18,7 @@ import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.LayerDrawable;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -38,12 +41,18 @@ import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.zxing.BinaryBitmap;
+import com.google.zxing.MultiFormatReader;
+import com.google.zxing.RGBLuminanceSource;
+import com.google.zxing.Result;
+import com.google.zxing.common.HybridBinarizer;
 import com.risonliang.mfa.R;
 import com.risonliang.mfa.crypto.OtpGenerator;
 import com.risonliang.mfa.data.GaMigrationDecoder;
 import com.risonliang.mfa.data.OtpRepository;
 import com.risonliang.mfa.data.OtpUriParser;
 import com.risonliang.mfa.model.OtpAccount;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -55,6 +64,7 @@ public class MainActivity extends BaseSecureActivity {
     private final List<OtpAccount> data_ = new ArrayList<>();
     private final Handler tickHandler_ = new Handler(Looper.getMainLooper());
     private ActivityResultLauncher<Intent> scanLauncher_;
+    private ActivityResultLauncher<String> albumLauncher_;
 
     private final Runnable tick_ = new Runnable() {
         @Override
@@ -95,6 +105,14 @@ public class MainActivity extends BaseSecureActivity {
                         String content = result.getData().getStringExtra(
                                 ScanActivity.EXTRA_RESULT);
                         handleScanResult(content);
+                    }
+                });
+
+        albumLauncher_ = registerForActivityResult(
+                new ActivityResultContracts.GetContent(),
+                uri -> {
+                    if (uri != null) {
+                        decodeQrFromImage(uri);
                     }
                 });
     }
@@ -195,10 +213,13 @@ public class MainActivity extends BaseSecureActivity {
                 .setTitle("添加账号")
                 .setItems(new CharSequence[]{
                                 getString(R.string.action_scan),
+                                getString(R.string.action_from_album),
                                 getString(R.string.action_manual)},
                         (d, which) -> {
                             if (which == 0) {
                                 launchScan();
+                            } else if (which == 1) {
+                                albumLauncher_.launch("image/*");
                             } else {
                                 startActivity(new Intent(this,
                                         AddManualActivity.class));
@@ -209,6 +230,49 @@ public class MainActivity extends BaseSecureActivity {
 
     private void launchScan() {
         scanLauncher_.launch(new Intent(this, ScanActivity.class));
+    }
+
+    /** 从相册选取的图片中解码二维码。 */
+    private void decodeQrFromImage(Uri imageUri) {
+        try {
+            InputStream is = getContentResolver().openInputStream(imageUri);
+            if (is == null) {
+                Toast.makeText(this, R.string.error_image_read,
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+            Bitmap bitmap = BitmapFactory.decodeStream(is);
+            is.close();
+            if (bitmap == null) {
+                Toast.makeText(this, R.string.error_image_read,
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+            int width = bitmap.getWidth();
+            int height = bitmap.getHeight();
+            int[] pixels = new int[width * height];
+            bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
+            bitmap.recycle();
+
+            RGBLuminanceSource source =
+                    new RGBLuminanceSource(width, height, pixels);
+            BinaryBitmap binaryBitmap =
+                    new BinaryBitmap(new HybridBinarizer(source));
+            Result result = new MultiFormatReader().decode(binaryBitmap);
+            String content = result.getText();
+            if (content == null || content.isEmpty()) {
+                Toast.makeText(this, R.string.error_qr_not_found,
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+            handleScanResult(content);
+        } catch (com.google.zxing.NotFoundException e) {
+            Toast.makeText(this, R.string.error_qr_not_found,
+                    Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, R.string.error_image_read,
+                    Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void handleScanResult(String content) {
