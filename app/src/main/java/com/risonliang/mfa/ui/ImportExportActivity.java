@@ -177,29 +177,35 @@ public class ImportExportActivity extends BaseSecureActivity {
         }
 
         final EditText et2Final = et2;
-        new AlertDialog.Builder(this)
+        AlertDialog dlg = new AlertDialog.Builder(this)
                 .setTitle(confirm ? R.string.action_export
                         : R.string.action_import)
                 .setView(layout)
                 .setNegativeButton(R.string.dialog_cancel, null)
-                .setPositiveButton(R.string.dialog_ok, (d, w) -> {
-                    String p1 = et1.getText().toString();
-                    if (TextUtils.isEmpty(p1) || p1.length() < 6) {
-                        Toast.makeText(this, R.string.password_too_short,
+                .setPositiveButton(R.string.dialog_ok, null)
+                .create();
+        // 使用 setOnShowListener 覆盖确定按钮行为，校验失败时不关闭对话框
+        dlg.setOnShowListener(dialog -> {
+            dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                String p1 = et1.getText().toString();
+                if (TextUtils.isEmpty(p1) || p1.length() < 6) {
+                    Toast.makeText(this, R.string.password_too_short,
+                            Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                if (confirm) {
+                    String p2 = et2Final.getText().toString();
+                    if (!p1.equals(p2)) {
+                        Toast.makeText(this, R.string.password_mismatch,
                                 Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    if (confirm) {
-                        String p2 = et2Final.getText().toString();
-                        if (!p1.equals(p2)) {
-                            Toast.makeText(this, R.string.password_mismatch,
-                                    Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-                    }
-                    callback.onPassword(p1.toCharArray());
-                })
-                .show();
+                }
+                dlg.dismiss();
+                callback.onPassword(p1.toCharArray());
+            });
+        });
+        dlg.show();
     }
 
     private void doExport2fa(Uri uri, char[] password) {
