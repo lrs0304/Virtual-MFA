@@ -71,4 +71,34 @@ public class OtpGeneratorTest {
         // "Hello!\xDE\xAD"
         assertEquals(10, data.length);
     }
+
+    @Test
+    public void base32_encode_decode_roundtrip() {
+        byte[] original = "Hello World".getBytes();
+        String encoded = Base32.encode(original);
+        byte[] decoded = Base32.decode(encoded);
+        assertEquals(new String(original), new String(decoded));
+    }
+
+    @Test
+    public void base32_encode_known_value() {
+        // "12345678901234567890" -> GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ
+        byte[] data = "12345678901234567890".getBytes();
+        String encoded = Base32.encode(data);
+        assertEquals("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", encoded);
+    }
+
+    @Test
+    public void hotp_rfc4226_test_vectors() {
+        // RFC 4226 Appendix D 测试向量
+        // Secret = "12345678901234567890" (ASCII)
+        String[] expected = {
+                "755224", "287082", "359152", "969429", "338314",
+                "254676", "287922", "162583", "399871", "520489"
+        };
+        for (int i = 0; i < expected.length; i++) {
+            String code = OtpGenerator.hotp(SECRET_BASE32, "SHA1", 6, i);
+            assertEquals("HOTP counter=" + i, expected[i], code);
+        }
+    }
 }
