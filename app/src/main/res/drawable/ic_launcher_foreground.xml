@@ -2,7 +2,8 @@
 <!--
   Copyright (c) 2026 risonliang. All rights reserved.
   Launcher 前景层：白色盾牌 + 深蓝钥匙孔 + 青色 270° 倒计时弧。
-  视口 108x108，主体内容限定在中心 72x72 安全区内，避免自适应裁切。
+  视口 108x108，主体缩入中心 ~62x62 安全区，外圈预留呼吸空间，
+  避免被启动器圆形遮罩裁切。
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -10,26 +11,26 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- 外层青色弧线（倒计时进度感） -->
+    <!-- 外层青色 270° 倒计时弧（半径 27，圆心 54,54） -->
     <path
-        android:pathData="M54,18 A36,36 0 1 1 18,54"
+        android:pathData="M54,27 A27,27 0 1 1 27,54"
         android:strokeColor="#00BCD4"
-        android:strokeWidth="3"
+        android:strokeWidth="2.6"
         android:fillColor="#00000000"
         android:strokeLineCap="round"/>
 
-    <!-- 盾牌主体（白色） -->
+    <!-- 盾牌主体（白色，再缩小约 8%） -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,30 L74,38 L74,56 C74,68 65,77 54,82 C43,77 34,68 34,56 L34,38 Z"/>
+        android:pathData="M54,36 L69,42 L69,56 C69,65 63,72 54,75 C45,72 39,65 39,56 L39,42 Z"/>
 
-    <!-- 钥匙孔：圆头 -->
+    <!-- 钥匙孔：圆头（缩小到 r=3.5） -->
     <path
         android:fillColor="#1976D2"
-        android:pathData="M54,48 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0"/>
+        android:pathData="M54,51 m-3.5,0 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0"/>
 
-    <!-- 钥匙孔：下方梯形 -->
+    <!-- 钥匙孔：下方梯形（等比缩小） -->
     <path
         android:fillColor="#1976D2"
-        android:pathData="M51,52 L57,52 L59,67 L49,67 Z"/>
+        android:pathData="M52,54 L56,54 L57,63 L51,63 Z"/>
 </vector>

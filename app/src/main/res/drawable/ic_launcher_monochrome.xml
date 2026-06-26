@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 risonliang. All rights reserved.
+  Launcher 单色前景层（Android 13+ 主题图标专用）。
+
+  设计要点：
+  1. 系统只读取 alpha 通道，所有 fillColor 实际只用作"占位"，最终会被
+     系统主题色统一着色。这里全部使用纯黑（#FF000000）保证 alpha 满。
+  2. 钥匙孔通过 evenOdd 填充规则在盾牌内部"镂空"，这样单色化后能
+     清晰看到钥匙孔形状，而不是融成一团。
+  3. 倒计时弧保持描边形式，单色化后会成为细弧。
+  4. 几何尺寸与彩色版保持一致，整体收入中心 ~62x62 安全区。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 外层 270° 倒计时弧（半径 27） -->
+    <path
+        android:pathData="M54,27 A27,27 0 1 1 27,54"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2.6"
+        android:fillColor="#00000000"
+        android:strokeLineCap="round"/>
+
+    <!-- 盾牌 + 钥匙孔（一条 path，evenOdd 镂空钥匙孔） -->
+    <path
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"
+        android:pathData="M54,36 L69,42 L69,56 C69,65 63,72 54,75 C45,72 39,65 39,56 L39,42 Z M50.5,51 a3.5,3.5 0 1,1 7,0 a3.5,3.5 0 1,1 -7,0 Z M52,54 L56,54 L57,63 L51,63 Z"/>
+</vector>
