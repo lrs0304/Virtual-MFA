@@ -2,6 +2,14 @@ plugins {
     alias(libs.plugins.android.application)
 }
 
+// 从 local.properties 读取 release 签名配置（该文件不会上库）
+def signingProps = new Properties()
+def signingPropsFile = rootProject.file('local.properties')
+if (signingPropsFile.exists()) {
+    signingPropsFile.withInputStream { signingProps.load(it) }
+}
+def hasReleaseSigning = signingProps.getProperty('MFA_STORE_FILE') != null
+
 android {
     namespace 'com.risonliang.mfa'
     compileSdk {
@@ -32,8 +40,22 @@ android {
         buildConfig true
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(signingProps.getProperty('MFA_STORE_FILE'))
+                storePassword signingProps.getProperty('MFA_STORE_PASSWORD')
+                keyAlias signingProps.getProperty('MFA_KEY_ALIAS')
+                keyPassword signingProps.getProperty('MFA_KEY_PASSWORD')
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
