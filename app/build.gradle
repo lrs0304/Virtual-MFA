@@ -88,7 +88,6 @@ dependencies {
     implementation libs.material
     implementation libs.recyclerview
     implementation libs.constraintlayout
-    implementation libs.security.crypto
     implementation libs.biometric
 
     // ZXing 扫码（轻量、离线）

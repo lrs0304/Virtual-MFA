@@ -6,8 +6,6 @@ package com.risonliang.mfa.security;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Base64;
-import androidx.security.crypto.EncryptedSharedPreferences;
-import androidx.security.crypto.MasterKey;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import javax.crypto.SecretKeyFactory;
@@ -19,7 +17,9 @@ import javax.crypto.spec.PBEKeySpec;
  * 功能职责：
  *  1. 首次使用引导设置 PIN（最少 4 位，最多 12 位）。
  *  2. PIN 不明文存储；保存为 PBKDF2-HMAC-SHA256（150000 轮）+ 16B 随机 salt 的哈希。
- *  3. 偏好通过 EncryptedSharedPreferences 落盘，由 Android Keystore 主密钥保护。
+ *  3. 偏好通过普通 SharedPreferences 落盘——存储内容仅为 PBKDF2 哈希与盐，
+ *     本身不含可逆秘密，无需二次加密；攻击者即使获取本地文件也只能进行
+ *     150000 轮 PBKDF2 的离线爆破，强度等价于密钥派生本身。
  *  4. 维护"已解锁会话"窗口，由 SecureActivity 的 onStart/onStop 维护应用级前台计数；
  *     一旦真正切到桌面或其它 App，即立即清除解锁状态，下次回到前台必须重新验证。
  *
@@ -62,24 +62,9 @@ public final class AppLockManager {
     }
 
     private AppLockManager(Context appCtx) {
-        SharedPreferences sp;
-        try {
-            MasterKey masterKey = new MasterKey.Builder(appCtx)
-                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                    .build();
-            sp = EncryptedSharedPreferences.create(
-                    appCtx,
-                    kPrefsName,
-                    masterKey,
-                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                    EncryptedSharedPreferences.PrefValueEncryptionScheme
-                            .AES256_GCM);
-        } catch (Exception e) {
-            // 极端兜底：Keystore 异常时降级为普通 SP，保持可用性；
-            // PIN 仍为哈希存储，不会泄露明文。
-            sp = appCtx.getSharedPreferences(kPrefsName, Context.MODE_PRIVATE);
-        }
-        prefs_ = sp;
+        // 直接使用普通 SharedPreferences：存储内容仅为 PBKDF2 哈希与盐值，
+        // 不存在可逆明文秘密，无需依赖 EncryptedSharedPreferences。
+        prefs_ = appCtx.getSharedPreferences(kPrefsName, Context.MODE_PRIVATE);
     }
 
     /** 是否已设置 PIN（即是否完成首次初始化）。 */
