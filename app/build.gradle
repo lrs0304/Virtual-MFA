@@ -94,9 +94,6 @@ dependencies {
     implementation libs.zxing.embedded
     implementation libs.zxing.core
 
-    // JSON 序列化（导入导出）
-    implementation libs.gson
-
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core

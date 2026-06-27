@@ -10,7 +10,6 @@ constraintlayout = "2.1.4"
 biometric = "1.1.0"
 zxingEmbedded = "4.3.0"
 zxingCore = "3.5.2"
-gson = "2.10.1"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -23,7 +22,6 @@ constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayo
 biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
 zxing-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", version.ref = "zxingEmbedded" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }
-gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
