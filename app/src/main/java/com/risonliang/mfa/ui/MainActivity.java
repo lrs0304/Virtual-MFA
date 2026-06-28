@@ -42,10 +42,10 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.zxing.BinaryBitmap;
-import com.google.zxing.MultiFormatReader;
 import com.google.zxing.RGBLuminanceSource;
 import com.google.zxing.Result;
 import com.google.zxing.common.HybridBinarizer;
+import com.google.zxing.qrcode.QRCodeReader;
 import com.risonliang.mfa.R;
 import com.risonliang.mfa.crypto.OtpGenerator;
 import com.risonliang.mfa.data.GaMigrationDecoder;
@@ -323,7 +323,9 @@ public class MainActivity extends BaseSecureActivity {
                     new RGBLuminanceSource(width, height, pixels);
             BinaryBitmap binaryBitmap =
                     new BinaryBitmap(new HybridBinarizer(source));
-            Result result = new MultiFormatReader().decode(binaryBitmap);
+            // 仅解码 QR 码（避免引入 PDF417/Aztec/DataMatrix 等其他码制类，
+            // 配合 ProGuard 可让 R8 剔除未使用的 Reader，缩小包体）
+            Result result = new QRCodeReader().decode(binaryBitmap);
             String content = result.getText();
             return (content == null) ? "" : content;
         } catch (com.google.zxing.NotFoundException e) {
