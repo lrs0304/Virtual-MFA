@@ -102,12 +102,15 @@ dependencies {
     implementation libs.constraintlayout
     implementation libs.biometric
 
-    // ZXing 扫码（轻量、离线）
+    // ZXing 仍保留：相机实时扫码 ScanActivity 走 BarcodeView 管线，依赖
+    // zxing-android-embedded + zxing-core。本分支只把"相册解码"切到 ML Kit
+    // 单管线，实时扫码保持不变。
     implementation libs.zxing.embedded
     implementation libs.zxing.core
 
     // ML Kit 条码扫描（bundled 版，内嵌模型，完全离线）。
-    // 仅在 ZXing 全量管线失败后作为兜底使用，专治屏摄/水印噪点截图。
+    // experiment/album-mlkit-only 分支：相册解码唯一管线，
+    // 不再走 ZXing 三档二值化快速路径，验证 ML Kit 单一管线的可用性。
     implementation libs.mlkit.barcode
 
     testImplementation libs.junit

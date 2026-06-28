@@ -50,13 +50,6 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
 import com.google.mlkit.vision.barcode.BarcodeScanning;
 import com.google.mlkit.vision.barcode.common.Barcode;
 import com.google.mlkit.vision.common.InputImage;
-import com.google.zxing.BinaryBitmap;
-import com.google.zxing.DecodeHintType;
-import com.google.zxing.RGBLuminanceSource;
-import com.google.zxing.Result;
-import com.google.zxing.common.GlobalHistogramBinarizer;
-import com.google.zxing.common.HybridBinarizer;
-import com.google.zxing.qrcode.QRCodeReader;
 import com.risonliang.mfa.R;
 import com.risonliang.mfa.crypto.OtpGenerator;
 import com.risonliang.mfa.data.GaMigrationDecoder;
@@ -66,10 +59,8 @@ import com.risonliang.mfa.model.OtpAccount;
 import com.risonliang.mfa.security.ClipboardCleaner;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -422,7 +413,14 @@ public class MainActivity extends BaseSecureActivity {
     }
 
     /**
-     * 后台线程：读取图片、降采样、解码二维码。
+     * 后台线程：读取图片、降采样、直接调用 ML Kit 解码二维码。
+     *
+     * 实验分支（experiment/album-mlkit-only）：去掉 ZXing 3 档二值化的快速路径，
+     * 相册解码直接走 ML Kit bundled 模型，验证以下假设：
+     *   1. ML Kit 自身对屏摄/水印噪点截图的鲁棒性已足够覆盖绝大多数 case；
+     *   2. ZXing 三档快速路径在多数情况下并非"快速"，反而拖慢失败 case 的总耗时；
+     *   3. 单一管线更简单、可维护性更高。
+     *
      * @return 解码内容；空字符串表示未找到二维码；null 表示读取失败（已 Toast）。
      */
     private String decodeQrInBackground(Uri imageUri) {
@@ -444,48 +442,23 @@ public class MainActivity extends BaseSecureActivity {
             int origW = opts.outWidth;
             int origH = opts.outHeight;
             int maxDim = Math.max(origW, origH);
-            // 截图里的二维码往往只占整图一小块，过早降采样会把模块缩到 1~2px，
-            // 直接导致 ZXing 找不到 finder pattern。
-            // 策略：在多个采样率上串行尝试，原图优先；每个采样率内尝试
-            // Hybrid/GlobalHistogram/Invert 三档快速二值化，作为 ML Kit 的
-            // 快速路径；ZXing 全部失败时才唤起 ML Kit 模型兜底。
-            int firstSample = 1;
-            while (maxDim / firstSample > 4096) {
-                firstSample *= 2;
+            // 即便走 ML Kit，仍需要 inSampleSize 防大图 OOM。
+            // 经验阈值 4096：超过这个边长才降采样，否则原图喂给 ML Kit 最佳。
+            int sampleSize = 1;
+            while (maxDim / sampleSize > 4096) {
+                sampleSize *= 2;
             }
             Log.d(kLogTag, "image bounds=" + origW + "x" + origH
                     + ", mime=" + opts.outMimeType
-                    + ", firstSample=" + firstSample);
+                    + ", sampleSize=" + sampleSize);
 
-            int[] sampleCandidates = {firstSample, firstSample * 2,
-                    firstSample * 4};
-            String content = null;
-            for (int s : sampleCandidates) {
-                if (maxDim / s < 200) {
-                    // 缩得太小已没识别价值，跳过
-                    continue;
-                }
-                if (content == null) {
-                    Log.d(kLogTag, "trying decode with sample=" + s);
-                    content = decodeQrWithSample(imageUri, s);
-                    if (content != null) {
-                        break;
-                    }
-                }
-            }
-            if (content == null) {
-                // ZXing 全管线失败：上 ML Kit 兜底（bundled 模型，离线，
-                // 对屏摄/水印噪点截图鲁棒性远强于 ZXing 的阈值二值化）。
-                Log.d(kLogTag, "ZXing missed, fallback to ML Kit");
-                content = decodeWithMlKit(imageUri, firstSample);
-            }
+            String content = decodeWithMlKit(imageUri, sampleSize);
             if (content == null) {
                 Log.w(kLogTag,
-                        "QRCode not found after all retries, origSize="
+                        "QRCode not found by ML Kit, origSize="
                                 + origW + "x" + origH
                                 + ", mime=" + opts.outMimeType
-                                + ", samplesTried="
-                                + java.util.Arrays.toString(sampleCandidates));
+                                + ", sampleSize=" + sampleSize);
                 return "";
             }
             Log.d(kLogTag, "QR decoded, length=" + content.length()
@@ -501,100 +474,7 @@ public class MainActivity extends BaseSecureActivity {
     }
 
     /**
-     * 以指定采样率读取图片并尝试解码二维码。失败返回 null，
-     * 由调用者决定是否换一个采样率重试。
-     */
-    private String decodeQrWithSample(Uri imageUri, int sampleSize) {
-        Bitmap bitmap = null;
-        try {
-            BitmapFactory.Options opts = new BitmapFactory.Options();
-            opts.inSampleSize = Math.max(1, sampleSize);
-            opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
-            try (InputStream is = getContentResolver().openInputStream(imageUri)) {
-                if (is == null) {
-                    Log.w(kLogTag,
-                            "openInputStream returned null (decode), sample="
-                                    + sampleSize);
-                    return null;
-                }
-                bitmap = BitmapFactory.decodeStream(is, null, opts);
-            }
-            if (bitmap == null) {
-                Log.w(kLogTag, "decodeStream returned null, sample="
-                        + sampleSize);
-                return null;
-            }
-            int width = bitmap.getWidth();
-            int height = bitmap.getHeight();
-            int[] pixels = new int[width * height];
-            bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
-
-            RGBLuminanceSource source =
-                    new RGBLuminanceSource(width, height, pixels);
-
-            // 准备 hints。开启 TRY_HARDER：以更慢的速度换取更高的识别成功率，
-            // 适用于相册截图、有压缩噪声、占比较小的二维码。
-            Map<DecodeHintType, Object> hints =
-                    new EnumMap<>(DecodeHintType.class);
-            hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
-
-            // ZXing 快速路径：依次尝试 Hybrid/GlobalHistogram/Invert 三档
-            // 二值化。这三档都很轻量，能覆盖绝大多数清晰截图；任何一档命中
-            // 都立即返回。复杂样本（屏摄/水印/噪点等）让外层走 ML Kit 兜底，
-            // 不再在 ZXing 这里堆 Cleaned/Multi 等高成本路径。
-
-            // 1) HybridBinarizer + TRY_HARDER：通用最佳。
-            String r = tryDecode(new BinaryBitmap(new HybridBinarizer(source)),
-                    hints, "Hybrid+TryHarder", width, height);
-            if (r != null) {
-                return r;
-            }
-            // 2) GlobalHistogramBinarizer + TRY_HARDER：对低对比度截图更友好。
-            r = tryDecode(
-                    new BinaryBitmap(new GlobalHistogramBinarizer(source)),
-                    hints, "GlobalHist+TryHarder", width, height);
-            if (r != null) {
-                return r;
-            }
-            // 3) 反色：极少数浅底深码 / 深底浅码翻转的截图。
-            BinaryBitmap inverted =
-                    new BinaryBitmap(new HybridBinarizer(source.invert()));
-            r = tryDecode(inverted, hints, "Hybrid+Invert", width, height);
-            return r;
-        } catch (Exception e) {
-            Log.w(kLogTag, "decodeQrWithSample(" + sampleSize + ") error: "
-                    + e.getClass().getSimpleName() + " " + e.getMessage());
-            return null;
-        } finally {
-            if (bitmap != null) {
-                bitmap.recycle();
-            }
-        }
-    }
-
-    /** 单次 ZXing 解码尝试，封装异常并记录耗时。 */
-    private static String tryDecode(BinaryBitmap bb,
-            Map<DecodeHintType, Object> hints, String label,
-            int w, int h) {
-        QRCodeReader reader = new QRCodeReader();
-        try {
-            Result result = reader.decode(bb, hints);
-            Log.d(kLogTag, "QR decode hit by " + label + ", size="
-                    + w + "x" + h);
-            return result.getText();
-        } catch (com.google.zxing.NotFoundException miss) {
-            return null;
-        } catch (Exception e) {
-            Log.w(kLogTag, "QR decode " + label + " threw: "
-                    + e.getClass().getSimpleName() + " " + e.getMessage());
-            return null;
-        } finally {
-            reader.reset();
-        }
-    }
-
-    /**
-     * ML Kit 兜底解码：仅在 ZXing 全管线失败时调用。
+     * ML Kit 解码：本分支唯一相册解码路径。
      *
      * 设计要点：
      *  1) 复用与 ZXing 相同的 inSampleSize 策略读 Bitmap，避免大图 OOM；
