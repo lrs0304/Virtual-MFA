@@ -130,4 +130,22 @@
     <string name="lock_biometric_subtitle">使用指纹或面容快速解锁</string>
     <string name="lock_biometric_negative">使用密码</string>
     <string name="lock_offline_tip">本应用完全离线运行，数据仅保存在本机</string>
+
+    <!-- 设置页 -->
+    <string name="title_settings">设置</string>
+    <string name="action_settings">设置</string>
+    <string name="settings_section_display">显示</string>
+    <string name="settings_section_security">安全</string>
+    <string name="settings_hide_codes_title">默认隐藏验证码</string>
+    <string name="settings_hide_codes_summary">列表项默认显示遮罩，点按账号短暂显形 5 秒，避免肩窥</string>
+    <string name="settings_show_next_title">剩余 ≤5 秒预显示下一码</string>
+    <string name="settings_show_next_summary">临近过期时同时呈现下一周期的码，避免粘贴时刚好失效</string>
+    <string name="settings_grace_title">自动锁定宽限期</string>
+    <string name="settings_grace_summary">应用进入后台超过该时长后才需要重新解锁。设置越长越方便、安全性越弱，请按需选择。</string>
+    <string name="settings_grace_0">立即锁定（推荐，最严格）</string>
+    <string name="settings_grace_15">15 秒</string>
+    <string name="settings_grace_30">30 秒</string>
+    <string name="settings_grace_60">1 分钟</string>
+    <string name="settings_grace_300">5 分钟</string>
+    <string name="settings_offline_tip">所有偏好仅保存在本机，零联网。</string>
 </resources>

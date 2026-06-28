@@ -215,6 +215,10 @@ public class MainActivity extends BaseSecureActivity {
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         int id = item.getItemId();
+        if (id == R.id.action_settings) {
+            startActivity(new Intent(this, SettingsActivity.class));
+            return true;
+        }
         if (id == R.id.action_import_export) {
             startActivity(new Intent(this, ImportExportActivity.class));
             return true;
