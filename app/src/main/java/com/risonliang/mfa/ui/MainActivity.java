@@ -22,7 +22,9 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Editable;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
@@ -30,6 +32,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -74,8 +77,15 @@ public class MainActivity extends BaseSecureActivity {
 
     private RecyclerView rvAccounts_;
     private TextView tvEmpty_;
+    private EditText etSearch_;
+    private ImageButton btnSearchClear_;
     private OtpAdapter adapter_;
+    /** 适配器实际渲染的列表（受搜索条件过滤）。 */
     private final List<OtpAccount> data_ = new ArrayList<>();
+    /** 全量数据缓存：搜索过滤的输入源，避免重复读 DB。 */
+    private final List<OtpAccount> allData_ = new ArrayList<>();
+    /** 当前搜索词（trim 后的小写）。空字符串表示无过滤。 */
+    private String currentQuery_ = "";
     private final Handler tickHandler_ = new Handler(Looper.getMainLooper());
     private ActivityResultLauncher<Intent> scanLauncher_;
     private ActivityResultLauncher<String> albumLauncher_;
@@ -110,10 +120,13 @@ public class MainActivity extends BaseSecureActivity {
 
         rvAccounts_ = findViewById(R.id.rv_accounts);
         tvEmpty_ = findViewById(R.id.tv_empty);
+        etSearch_ = findViewById(R.id.et_search);
+        btnSearchClear_ = findViewById(R.id.btn_search_clear);
         rvAccounts_.setLayoutManager(new LinearLayoutManager(this));
         adapter_ = new OtpAdapter(data_, this::onItemClick, this::onItemLong);
         rvAccounts_.setAdapter(adapter_);
         attachSwipeToDelete();
+        attachSearch();
 
         FloatingActionButton fab = findViewById(R.id.fab_add);
         fab.setOnClickListener(v -> showAddSheet());
@@ -224,15 +237,94 @@ public class MainActivity extends BaseSecureActivity {
 
     private void reload() {
         try {
-            data_.clear();
-            data_.addAll(OtpRepository.get(this).listAll());
-            adapter_.notifyDataSetChanged();
-            tvEmpty_.setVisibility(data_.isEmpty() ? View.VISIBLE : View.GONE);
+            allData_.clear();
+            allData_.addAll(OtpRepository.get(this).listAll());
+            applyFilter();
         } catch (Exception e) {
             Toast.makeText(this,
                     getString(R.string.error_load_failed, e.getMessage()),
                     Toast.LENGTH_SHORT).show();
         }
+    }
+
+    /**
+     * 绑定搜索栏：文本变化时即时过滤；清除按钮一键还原全量列表。
+     * 仅做本地 issuer / account 字段大小写不敏感的子串匹配，不涉及 secret。
+     */
+    private void attachSearch() {
+        if (etSearch_ == null) {
+            return;
+        }
+        etSearch_.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start,
+                                          int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start,
+                                      int before, int count) {}
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                String q = s == null ? "" : s.toString().trim();
+                currentQuery_ = q;
+                if (btnSearchClear_ != null) {
+                    btnSearchClear_.setVisibility(
+                            q.isEmpty() ? View.GONE : View.VISIBLE);
+                }
+                applyFilter();
+            }
+        });
+        if (btnSearchClear_ != null) {
+            btnSearchClear_.setOnClickListener(v -> {
+                etSearch_.setText("");
+            });
+        }
+    }
+
+    /**
+     * 根据 {@link #currentQuery_} 过滤 {@link #allData_} → {@link #data_}，
+     * 并刷新空态文案。空查询直接全量回填，避免不必要的字符串比较。
+     */
+    private void applyFilter() {
+        data_.clear();
+        if (currentQuery_.isEmpty()) {
+            data_.addAll(allData_);
+        } else {
+            String needle = currentQuery_.toLowerCase(java.util.Locale.ROOT);
+            for (OtpAccount acc : allData_) {
+                if (matches(acc, needle)) {
+                    data_.add(acc);
+                }
+            }
+        }
+        adapter_.notifyDataSetChanged();
+        if (data_.isEmpty()) {
+            tvEmpty_.setVisibility(View.VISIBLE);
+            tvEmpty_.setText(currentQuery_.isEmpty()
+                    ? getString(R.string.empty_tip)
+                    : getString(R.string.empty_search_tip, currentQuery_));
+        } else {
+            tvEmpty_.setVisibility(View.GONE);
+        }
+    }
+
+    /** issuer / account 任一字段含查询词（小写）即视为命中。 */
+    private static boolean matches(OtpAccount acc, String needleLower) {
+        if (acc == null) {
+            return false;
+        }
+        if (acc.issuer != null
+                && acc.issuer.toLowerCase(java.util.Locale.ROOT)
+                        .contains(needleLower)) {
+            return true;
+        }
+        if (acc.account != null
+                && acc.account.toLowerCase(java.util.Locale.ROOT)
+                        .contains(needleLower)) {
+            return true;
+        }
+        return false;
     }
 
     private void showAddSheet() {
