@@ -12,10 +12,11 @@
 -keep class com.google.zxing.DecodeHintType { *; }
 -dontwarn com.google.zxing.**
 
-# zxing-android-embedded 内部 Camera 相关回调通过反射调用，需要保留
+# zxing-android-embedded 内部 Camera 相关回调通过反射调用，需要保留。
+# 注意：本项目仅使用 BarcodeView + ViewfinderView，不使用 DecoratedBarcodeView，
+# 因此不再 keep DecoratedBarcodeView，让 R8 把它和它的依赖剪掉。
 -keep class com.journeyapps.barcodescanner.BarcodeView { *; }
 -keep class com.journeyapps.barcodescanner.ViewfinderView { *; }
--keep class com.journeyapps.barcodescanner.DecoratedBarcodeView { *; }
 -keep class com.journeyapps.barcodescanner.camera.** { *; }
 -dontwarn com.journeyapps.barcodescanner.**
 
