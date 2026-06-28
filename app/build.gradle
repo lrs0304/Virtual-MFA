@@ -10,6 +10,11 @@ if (signingPropsFile.exists()) {
 }
 def hasReleaseSigning = signingProps.getProperty('MFA_STORE_FILE') != null
 
+// 用 git 提交数作为 versionCode，保证单调递增，CI 友好
+def gitCommitCount = providers.exec {
+    commandLine 'git', 'rev-list', '--count', 'HEAD'
+}.standardOutput.asText.get().trim().toInteger()
+
 android {
     namespace 'com.risonliang.mfa'
     compileSdk {
@@ -22,8 +27,8 @@ android {
         applicationId "com.risonliang.mfa"
         minSdk 26
         targetSdk 36
-        versionCode 1
-        versionName "1.0"
+        versionCode gitCommitCount
+        versionName "1.0.${gitCommitCount}"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -62,6 +67,8 @@ android {
         }
         debug {
             minifyEnabled false
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
         }
     }
 

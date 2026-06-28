@@ -20,7 +20,8 @@ public class ExampleInstrumentedTest {
     @Test
     public void useAppContext() {
         // Context of the app under test.
+        // 使用 BuildConfig.APPLICATION_ID 作为期望值，兼容 debug 包的 .debug 后缀。
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
-        assertEquals("com.risonliang.mfa", appContext.getPackageName());
+        assertEquals(BuildConfig.APPLICATION_ID, appContext.getPackageName());
     }
 }
