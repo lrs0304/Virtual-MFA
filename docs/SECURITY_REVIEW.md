@@ -2,7 +2,7 @@
 
 > Sam（安全工程师）针对 `feat/ux-enhancement` 分支子任务的逐项核对。
 > 与 [CLAUDE.md §4 安全红线](../CLAUDE.md) 11 条逐条比对。
-> 覆盖范围：v0.1（T1–T7）+ v0.2（T8 / S1 / SearchFilterTest 修复）。
+> 覆盖范围：v0.1（T1–T7）+ v0.2（T8 / S1 / SearchFilterTest 修复）+ v0.3（T9 / T10）。
 
 ## 1. 红线核对
 
@@ -81,6 +81,19 @@
 - MainActivity.applyFilter 依然在入口处 `currentQuery_.toLowerCase(Locale.ROOT)`，运行时行为与修复前一致
 - 风险：**无**
 
+### T9 收藏置顶
+- 添加了数据库 `favorite INTEGER DEFAULT 0` 列，schema 升到 v3
+- v1/v2 老数据库升级路径严格仅补加新列，favorite 默认 0，**老账号顺序、secret、counter 完全不变**
+- 加字段仅影响排序与渲染，**不参与任何加密路径**
+- setFavorite 只 UPDATE 一列；onMove 拒绝跨分区拖拽避免表面顺序与存储顺序偏离
+- 风险：**极低**
+
+### T10 英文本地化
+- 仅新增 `values-en/strings.xml`，**不修改任何 Java / 布局 / 依赖**
+- string id 与中文版完全对齐（118 条），避免运行期资源查找失败
+- build.gradle `resourceConfigurations += ['zh', 'en']` 已提前声明，获取了启用
+- 风险：**无**
+
 ## 3. 验收前回归矩阵（建议在物理机走一遍）
 
 - [ ] 扫码添加账号
@@ -98,6 +111,9 @@
 - [ ] **新**：长按账号拖拽排序，松手后顺序持久化、杀进程重开仍保留
 - [ ] **新**：搜索框非空时长按不触发拖拽
 - [ ] **新**：「设置」页可调隐藏码 / 下一码 / 宽限期，返回主列表立即生效
+- [ ] **新**：长按账号“置顶常用”后出现★并上提到列表顶部；跨分区拖拽被拒绝
+- [ ] **新**：老账号从 v1/v2 升级后 secret、顺序、counter 全部保留
+- [ ] **新**：设备语言设为 English 后，主页、设置页、备份、锁页 全译文
 - [ ] PIN 设置 / 修改 / 关闭 / 解锁 / 生物识别快捷解锁全部正常
 - [ ] 加密备份 .2fa 导出 + 导入
 - [ ] 明文 CSV 导出（含警告对话框）+ 导入
@@ -107,17 +123,19 @@
 
 > v0.1：未引入新依赖；仅新增 4 个 Java 类、3 张 layout/drawable 修改、若干 string。
 > v0.2：只新增 1 个 Java 类（SettingsActivity）+ 1 张 layout + 11 条 string，未引入任何依赖。
+> v0.3：只新增 1 张 values-en/strings.xml + OtpRepository schema v3 补业，未引入任何依赖。
 >
 > **实测数据**（arm64-v8a release APK）：
 >
 > | 节点 | 字节 | 备注 |
 > |---|---|---|
 > | main 基线 (commit 863a071) | 7,389,752 | README 中标注的 ≈ 7.3MB |
-> | 本分支 HEAD | **7,686,362** | 净增 **+296,610 B（≈ +290 KB）** |
-> | 8MB 红线 | 8,388,608 | 余量 **≈ 686 KB**，安全 |
+> | v0.2 HEAD | 7,686,362 | 净增 +296,610 B |
+> | **v0.3 HEAD（T9 + T10）** | **7,693,410** | 相对基线 **+303,658 B (≈ +296 KB)** |
+> | 8MB 红线 | 8,388,608 | 余量 **≈ 679 KB**，安全 |
 >
 > 增量主要来自 `classes.dex` 中的 SettingsActivity / 拖拽逻辑 / Snackbar / IssuerIconDrawable
-> / ClipboardCleaner / UiPreferences / 测试修复后的 R8 代码图变化；libbarhopper.so 与
-> ML Kit 模型未变。
+> / ClipboardCleaner / UiPreferences / setFavorite / 测试修复后的 R8 代码图变化；
+> values-en 增量约 7 KB；libbarhopper.so 与 ML Kit 模型未变。
 
 — Sam · 2026

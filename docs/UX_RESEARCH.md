@@ -63,6 +63,8 @@
 |---|---|---|---|---|
 | **T8** | 长按拖拽排序（搜索过滤态自动禁用） | Aaron | 中 | 低 |
 | **S1** | 设置 Activity（集中承载 T3/T4/T5 偏好） | Aaron | 高 | 低 |
+| **T9** | 收藏置顶（长按菜单加★、schema v3、分区内拖拽） | Aaron | 中 | 低 |
+| **T10** | 英文本地化（values-en，118 条、与 zh 完全对齐） | Aaron | 中 | 极低 |
 
 明确 **Out-of-Scope**：
 - ❌ 任何**云同步**（违反「零联网权限」）
@@ -101,6 +103,11 @@
 - TC-T8-02：搜索框非空时长按不应触发拖拽（避免基于过滤态写回乱序）
 - TC-S1-01：进入「设置」页修改隐藏码 / 下一码 / 宽限期；返回主列表立即生效
 - TC-S1-02：设置页继承 BaseSecureActivity，release 包内不能截屏；从后台回前台触发解锁路由
+- TC-T9-01：长按账号选择“置顶常用”后，条目上提到列表顶部且 issuer 前出现 ★
+- TC-T9-02：跨分区（收藏<->非收藏）拖拽被拒绝，顺序不变
+- TC-T9-03：DB 从 v1/v2 升级到 v3，所有老账号 favorite 默认 false，原顺序保留
+- TC-T10-01：设备语言为 English 时，所有页面文案仅及列表、设置、备份、锁页全部是英文
+- TC-T10-02：上下文字符串 fmt_remaining_seconds、fmt_next_code 在英文下参数位置与表达正确
 
 ---
 
@@ -122,6 +129,9 @@ M10 Sam 安全 self-review checklist 落档        [docs] ✅
 M11 修复 SearchFilterTest needle 大小写归一化  [test] ✅
 M12 S1 简洁的「设置」Activity                  [feat] ✅
 M13 T8 长按拖拽排序 + sortOrder 单事务持久化   [feat] ✅
+M14 文档同步 v0.2 + Sam APK 体积复核              [docs] ✅
+M15 T9 收藏置顶（schema v3, 分区内拖拽）          [feat] ✅
+M16 T10 英文本地化 values-en（118 条完全对齐）     [feat] ✅
 ```
 
 — Penny / Aaron / Sam / Tina · 2026
