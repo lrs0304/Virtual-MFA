@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.view.WindowManager;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import com.risonliang.mfa.BuildConfig;
 import com.risonliang.mfa.security.AppLockManager;
 
 /**
@@ -23,9 +24,15 @@ import com.risonliang.mfa.security.AppLockManager;
  */
 public abstract class BaseSecureActivity extends AppCompatActivity {
 
-    /** 子类可覆盖以禁用 FLAG_SECURE（例如某些演示场景）。默认开启。 */
+    /**
+     * 子类可覆盖以禁用 FLAG_SECURE（例如某些演示场景）。
+     *
+     * 默认策略：release 构建开启、debug 构建关闭。这样可以在开发调试时
+     * 自由使用截屏 / Layout Inspector / 录屏，而正式包仍然禁止外部抓屏。
+     * 子类如有特殊需求可直接覆盖此方法返回固定值。
+     */
     protected boolean isFlagSecureEnabled() {
-        return true;
+        return !BuildConfig.DEBUG;
     }
 
     /**
