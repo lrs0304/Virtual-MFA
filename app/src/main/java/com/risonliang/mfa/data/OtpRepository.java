@@ -79,6 +79,38 @@ public final class OtpRepository {
                 new String[]{String.valueOf(id)});
     }
 
+    /**
+     * 批量更新 sortOrder：按 ids 数组顺序写入 0,1,2,...，作为列表的展示次序。
+     *
+     * 实现要点：
+     *  1. 走单事务，要么全部成功要么全部回滚，避免部分写入留下中间态；
+     *  2. 仅更新 sort_order 一列，不触碰 secret_enc，避免无谓地走 Keystore；
+     *  3. 调用方应保证 ids 来自同一份当前列表的快照，且 size ≤ 1000（极限情况下
+     *     SQLiteStatement 复用即可，无需 IN 子句）。
+     */
+    public void updateSortOrder(long[] orderedIds) {
+        if (orderedIds == null || orderedIds.length == 0) {
+            return;
+        }
+        SQLiteDatabase db = helper_.getWritableDatabase();
+        db.beginTransaction();
+        try {
+            try (android.database.sqlite.SQLiteStatement stmt =
+                    db.compileStatement("UPDATE " + TABLE + " SET "
+                            + COL_SORT + "=? WHERE " + COL_ID + "=?")) {
+                for (int i = 0; i < orderedIds.length; i++) {
+                    stmt.clearBindings();
+                    stmt.bindLong(1, i);
+                    stmt.bindLong(2, orderedIds[i]);
+                    stmt.executeUpdateDelete();
+                }
+            }
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+    }
+
     /** HOTP 专用：递增计数器并返回新值。 */
     public long incrementCounter(long id, long currentCounter) {
         long next = currentCounter + 1;

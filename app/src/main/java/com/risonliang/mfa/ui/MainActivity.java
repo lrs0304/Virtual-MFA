@@ -859,10 +859,14 @@ public class MainActivity extends BaseSecureActivity {
                 .show();
     }
 
-    /** 左滑删除（带二次确认）；取消则恢复条目。背景圆角与卡片保持一致。 */
+    /**
+     * 为列表绑定拖拽排序 + 左滑删除。
+     * 拖拽：长按 item 在豆点区可上下拖动调整顺序，抬手时事务批量写回 sortOrder。
+     * 为避免搜索过滤态下 data_ 只是 allData_ 的子集造成原序错乱，
+     * 仅在无搜索词时启用拖动。
+     */
     private void attachSwipeToDelete() {
-        ItemTouchHelper.SimpleCallback cb = new ItemTouchHelper.SimpleCallback(
-                0, ItemTouchHelper.LEFT) {
+        ItemTouchHelper.Callback cb = new ItemTouchHelper.Callback() {
             private final Paint bgPaint_ = new Paint(Paint.ANTI_ALIAS_FLAG);
             private final Paint textPaint_ = new Paint(Paint.ANTI_ALIAS_FLAG);
             private final Rect textBounds_ = new Rect();
@@ -884,6 +888,8 @@ public class MainActivity extends BaseSecureActivity {
             private final int marginVPx_ = (int) TypedValue.applyDimension(
                     TypedValue.COMPLEX_UNIT_DIP, 6f,
                     getResources().getDisplayMetrics());
+            /** 本次拖拽是否发生过位置变化，决定 clearView 是否需要落库。 */
+            private boolean dragMoved_;
 
             {
                 bgPaint_.setColor(androidx.core.content.ContextCompat.getColor(
@@ -895,10 +901,85 @@ public class MainActivity extends BaseSecureActivity {
             }
 
             @Override
+            public int getMovementFlags(@NonNull RecyclerView rv,
+                                        @NonNull RecyclerView.ViewHolder vh) {
+                // 搜索过滤态下仅保留左滑删除；仅在全量列表下才启用拖拽。
+                int swipe = ItemTouchHelper.LEFT;
+                int drag = currentQuery_.isEmpty()
+                        ? (ItemTouchHelper.UP | ItemTouchHelper.DOWN) : 0;
+                return makeMovementFlags(drag, swipe);
+            }
+
+            @Override
+            public boolean isLongPressDragEnabled() {
+                // 仅全量列表下才允许长按发起拖动，避免过滤态详顺序错乱。
+                return currentQuery_.isEmpty();
+            }
+
+            @Override
+            public boolean isItemViewSwipeEnabled() {
+                return true;
+            }
+
+            @Override
             public boolean onMove(@NonNull RecyclerView rv,
                                   @NonNull RecyclerView.ViewHolder vh,
                                   @NonNull RecyclerView.ViewHolder target) {
-                return false;
+                int from = vh.getBindingAdapterPosition();
+                int to = target.getBindingAdapterPosition();
+                if (from < 0 || to < 0
+                        || from >= data_.size() || to >= data_.size()) {
+                    return false;
+                }
+                // 同步调整 data_ 与 allData_（两者在未过滤时为同顺序，但不是同一个
+                // List 引用），其中主要列表是 data_；ClearView 时按 data_ 顺序写回 DB。
+                java.util.Collections.swap(data_, from, to);
+                if (from < allData_.size() && to < allData_.size()) {
+                    java.util.Collections.swap(allData_, from, to);
+                }
+                adapter_.notifyItemMoved(from, to);
+                dragMoved_ = true;
+                return true;
+            }
+
+            @Override
+            public void onSelectedChanged(
+                    @androidx.annotation.Nullable RecyclerView.ViewHolder vh,
+                    int actionState) {
+                super.onSelectedChanged(vh, actionState);
+                if (actionState == ItemTouchHelper.ACTION_STATE_DRAG
+                        && vh != null) {
+                    // 拖拽中轻微隐去阴影提示“拿起”状态；在 clearView 中复原。
+                    vh.itemView.setAlpha(0.85f);
+                    vh.itemView.setScaleX(1.02f);
+                    vh.itemView.setScaleY(1.02f);
+                }
+            }
+
+            @Override
+            public void clearView(@NonNull RecyclerView rv,
+                                  @NonNull RecyclerView.ViewHolder vh) {
+                super.clearView(rv, vh);
+                vh.itemView.setAlpha(1f);
+                vh.itemView.setScaleX(1f);
+                vh.itemView.setScaleY(1f);
+                if (!dragMoved_) {
+                    return;
+                }
+                dragMoved_ = false;
+                // 抓一份 id 快照后用后台线程事务批量更新，避免阻塞主线程。
+                long[] orderedIds = new long[data_.size()];
+                for (int i = 0; i < data_.size(); i++) {
+                    orderedIds[i] = data_.get(i).id;
+                }
+                bgExecutor_.execute(() -> {
+                    try {
+                        OtpRepository.get(MainActivity.this)
+                                .updateSortOrder(orderedIds);
+                    } catch (Exception e) {
+                        Log.w(kLogTag, "persist sortOrder failed", e);
+                    }
+                });
             }
 
             @Override
