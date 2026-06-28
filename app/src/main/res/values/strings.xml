@@ -16,6 +16,7 @@
     <string name="hint_search">搜索账号</string>
     <string name="action_clear_search">清除搜索</string>
     <string name="empty_search_tip">没有找到匹配 \"%1$s\" 的账号</string>
+    <string name="fmt_next_code">下一码 %1$s</string>
     <string name="copied">验证码已复制</string>
     <string name="copied_with_clear">验证码已复制（30 秒后自动清空剪贴板）</string>
     <string name="fmt_remaining_seconds">%1$ds</string>

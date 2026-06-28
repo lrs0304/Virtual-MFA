@@ -3,6 +3,7 @@
  */
 package com.risonliang.mfa.ui;
 
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -64,6 +65,7 @@ import com.risonliang.mfa.security.ClipboardCleaner;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -84,6 +86,12 @@ public class MainActivity extends BaseSecureActivity {
     private final List<OtpAccount> allData_ = new ArrayList<>();
     /** 当前搜索词（trim 后的小写）。空字符串表示无过滤。 */
     private String currentQuery_ = "";
+    /**
+     * 临时显形超时类型型装载：帐号 id → 该帐号可见明文验证码的截止时间戳（ms）。
+     * 超过该时间后 renderCode 重新走默认隔离分支。
+     */
+    private final java.util.Map<Long, Long> revealUntilMs_ = new HashMap<>();
+    private static final long kRevealDurationMs = 5_000L;
     private final Handler tickHandler_ = new Handler(Looper.getMainLooper());
     private ActivityResultLauncher<Intent> scanLauncher_;
     private ActivityResultLauncher<String> albumLauncher_;
@@ -121,7 +129,8 @@ public class MainActivity extends BaseSecureActivity {
         etSearch_ = findViewById(R.id.et_search);
         btnSearchClear_ = findViewById(R.id.btn_search_clear);
         rvAccounts_.setLayoutManager(new LinearLayoutManager(this));
-        adapter_ = new OtpAdapter(data_, this::onItemClick, this::onItemLong);
+        adapter_ = new OtpAdapter(data_, this::onItemClick, this::onItemLong,
+                this::isCodeRevealed);
         rvAccounts_.setAdapter(adapter_);
         attachSwipeToDelete();
         attachSearch();
@@ -740,10 +749,35 @@ public class MainActivity extends BaseSecureActivity {
             code = OtpGenerator.totp(acc.secret, acc.algorithm,
                     acc.digits, acc.period, now);
         }
+        // T3：若开启了"隐藏验证码"，则把当前条目加入 5s 显形窗口；
+        // 否则不影响（下次 tick 渲染走默认路径）。
+        if (UiPreferences.get(this).isHideCodes()) {
+            revealUntilMs_.put(acc.id, now + kRevealDurationMs);
+            int idx = data_.indexOf(acc);
+            if (idx >= 0) {
+                adapter_.notifyItemChanged(idx);
+            }
+        }
         ClipboardCleaner.get(this).copyOtp("otp", code,
                 ClipboardCleaner.kDefaultClearDelayMs);
         Toast.makeText(this, R.string.copied_with_clear,
                 Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * 供 OtpAdapter 询问"某账号此刻是否处于临时显形窗口"。
+     * 自带过期清理，调用后表自动收缩。
+     */
+    private boolean isCodeRevealed(long accountId) {
+        Long until = revealUntilMs_.get(accountId);
+        if (until == null) {
+            return false;
+        }
+        if (System.currentTimeMillis() < until) {
+            return true;
+        }
+        revealUntilMs_.remove(accountId);
+        return false;
     }
 
     /** 长按改为编辑：仅允许修改 issuer / account，不动 secret。 */
@@ -893,6 +927,7 @@ public class MainActivity extends BaseSecureActivity {
             extends RecyclerView.Adapter<OtpAdapter.VH> {
 
         interface ItemAction { void on(OtpAccount acc); }
+        interface RevealQuery { boolean isRevealed(long accountId); }
 
         /** payload 标识：脱敏遮罩刷新。 */
         private static final Object kPayloadMask = new Object();
@@ -900,12 +935,14 @@ public class MainActivity extends BaseSecureActivity {
         private final List<OtpAccount> data_;
         private final ItemAction onClick_;
         private final ItemAction onLong_;
+        private final RevealQuery reveal_;
 
         OtpAdapter(List<OtpAccount> data, ItemAction onClick,
-                   ItemAction onLong) {
+                   ItemAction onLong, RevealQuery reveal) {
             data_ = data;
             onClick_ = onClick;
             onLong_ = onLong;
+            reveal_ = reveal;
             setHasStableIds(true);
         }
 
@@ -925,7 +962,7 @@ public class MainActivity extends BaseSecureActivity {
         @Override
         public void onBindViewHolder(@NonNull VH h, int position) {
             OtpAccount acc = data_.get(position);
-            h.bind(acc);
+            h.bind(acc, reveal_);
             h.itemView.setOnClickListener(v -> onClick_.on(acc));
             h.itemView.setOnLongClickListener(v -> {
                 onLong_.on(acc);
@@ -950,7 +987,7 @@ public class MainActivity extends BaseSecureActivity {
                 if (payloads.contains(kPayloadMask)) {
                     h.maskCode();
                 } else {
-                    h.refreshCode(data_.get(position));
+                    h.refreshCode(data_.get(position), reveal_);
                 }
             } else {
                 onBindViewHolder(h, position);
@@ -964,10 +1001,13 @@ public class MainActivity extends BaseSecureActivity {
 
         static final class VH extends RecyclerView.ViewHolder {
             private static final int kWarnThresholdSec = 5;
+            /** 隐藏验证码时的默认遮罩字符串（与 6 位对齐）。 */
+            private static final String kHiddenMask = "••• •••";
 
             final TextView tvIssuer_;
             final TextView tvAccount_;
             final TextView tvCode_;
+            final TextView tvNextCode_;
             final TextView tvRemaining_;
             final ProgressBar pb_;
 
@@ -976,33 +1016,41 @@ public class MainActivity extends BaseSecureActivity {
                 tvIssuer_ = v.findViewById(R.id.tv_issuer);
                 tvAccount_ = v.findViewById(R.id.tv_account);
                 tvCode_ = v.findViewById(R.id.tv_code);
+                tvNextCode_ = v.findViewById(R.id.tv_next_code);
                 tvRemaining_ = v.findViewById(R.id.tv_remaining);
                 pb_ = v.findViewById(R.id.pb_remaining);
             }
 
-            void bind(OtpAccount acc) {
+            void bind(OtpAccount acc, RevealQuery reveal) {
                 tvIssuer_.setText(acc.issuer == null ? "" : acc.issuer);
                 tvAccount_.setText(acc.account == null ? "" : acc.account);
-                refreshCode(acc);
+                refreshCode(acc, reveal);
             }
 
             /** 后台遮罩：仅显示占位字符，不暴露真实验证码。 */
             void maskCode() {
                 tvCode_.setText("•• ••• •••");
+                tvNextCode_.setVisibility(View.GONE);
                 tvRemaining_.setText("");
                 pb_.setProgress(0);
             }
 
-            void refreshCode(OtpAccount acc) {
+            void refreshCode(OtpAccount acc, RevealQuery reveal) {
+                Context ctx = itemView.getContext();
+                UiPreferences uiPrefs = UiPreferences.get(ctx);
+                boolean hideByPref = uiPrefs.isHideCodes();
+                boolean revealed = reveal != null && reveal.isRevealed(acc.id);
+                boolean shouldHide = hideByPref && !revealed;
+
                 if (acc.isHotp()) {
                     // HOTP：显示当前计数器对应的验证码，无倒计时
                     String code = OtpGenerator.hotp(acc.secret, acc.algorithm,
                             acc.digits, acc.counter);
-                    tvCode_.setText(formatCode(code));
-                    tvRemaining_.setText(itemView.getContext().getString(
-                            R.string.hotp_tap_hint));
+                    tvCode_.setText(shouldHide ? kHiddenMask : formatCode(code));
+                    tvNextCode_.setVisibility(View.GONE);
+                    tvRemaining_.setText(ctx.getString(R.string.hotp_tap_hint));
                     int color = androidx.core.content.ContextCompat.getColor(
-                            itemView.getContext(), R.color.progress_active);
+                            ctx, R.color.progress_active);
                     tvRemaining_.setTextColor(color);
                     pb_.setVisibility(View.GONE);
                 } else {
@@ -1011,7 +1059,7 @@ public class MainActivity extends BaseSecureActivity {
                     long now = System.currentTimeMillis();
                     String code = OtpGenerator.totp(acc.secret, acc.algorithm,
                             acc.digits, acc.period, now);
-                    tvCode_.setText(formatCode(code));
+                    tvCode_.setText(shouldHide ? kHiddenMask : formatCode(code));
                     int remain = OtpGenerator.remainingSeconds(acc.period, now);
                     pb_.setMax(acc.period);
                     pb_.setProgress(remain);
@@ -1020,11 +1068,27 @@ public class MainActivity extends BaseSecureActivity {
                             ? R.color.progress_warn
                             : R.color.progress_active;
                     int color = androidx.core.content.ContextCompat.getColor(
-                            itemView.getContext(), colorRes);
+                            ctx, colorRes);
                     tintProgress(pb_, color);
                     tvRemaining_.setTextColor(color);
-                    tvRemaining_.setText(itemView.getContext().getString(
+                    tvRemaining_.setText(ctx.getString(
                             R.string.fmt_remaining_seconds, remain));
+
+                    // T4：剩余 ≤5s 且偏好开启时、且不隐藏时，呈现下一码。
+                    if (!shouldHide && uiPrefs.isShowNextCode()
+                            && remain <= kWarnThresholdSec) {
+                        long nextWindowStart =
+                                ((now / 1000L) / acc.period + 1) * acc.period
+                                        * 1000L;
+                        String nextCode = OtpGenerator.totp(acc.secret,
+                                acc.algorithm, acc.digits, acc.period,
+                                nextWindowStart);
+                        tvNextCode_.setText(ctx.getString(
+                                R.string.fmt_next_code, formatCode(nextCode)));
+                        tvNextCode_.setVisibility(View.VISIBLE);
+                    } else {
+                        tvNextCode_.setVisibility(View.GONE);
+                    }
                 }
             }
 
