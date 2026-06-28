@@ -23,7 +23,7 @@ generic best practice.
 - **minSdk = 26（Android 8.0）**，**targetSdk / compileSdk = 36**
 - **ABI**：`arm64-v8a` 单架构。**不要**为了"兼容性"重新加回 `armeabi-v7a` / `x86_64`
 - **网络**：`AndroidManifest.xml` 显式 `tools:node="remove"` 掉了 `INTERNET` 等权限。**永远不要**加任何网络权限或上报 SDK
-- **R8**：release 默认开启 `minifyEnabled` + `shrinkResources` + **R8 full mode**
+- **R8**：release 开启 `minifyEnabled` + `shrinkResources`；**R8 full mode 已永久关闭**（见第 4 节红线 #9 与第 6.3 节）
 
 ## 2. 目录速查
 
@@ -92,6 +92,12 @@ chore(size): 移除冗余 manifest 注入组件并精简 ProGuard keep
 6. 改回 `androidx.security:security-crypto` 这种重型库（Keystore 直调即可）
 7. 把 ML Kit 改为 unbundled（远程下载模型）— 我们要离线
 8. 引入 Gson / Jackson / kotlin-reflect 等会拖大包体的库
+9. **重新打开 `android.enableR8.fullMode=true`** — 已实测会让 release 包的
+   实时扫码静默失败（ZXing 内部 catch 掉 ReaderException，logcat 无报错；
+   相册识图正常），即便整库 keep `com.google.zxing.**` 与
+   `com.journeyapps.barcodescanner.**` 也无效。怀疑 fullMode 的更激进
+   内联 / 反射裁剪打断了 `BarcodeView → DecoderThread → Handler` 回调链路。
+   想重开必须先在物理机完整回归扫码 + 相册识图两条路径
 
 ## 5. 包体守门（重要）
 
@@ -128,19 +134,20 @@ unzip -l app/build/outputs/apk/release/app-release.apk | sort -k1 -n -r | head -
 - **后台线程** 解码（`8f1aa7d` 修过 OOM）
 - 按需 `inSampleSize` 降采样
 
-### 6.3 ProGuard
+### 6.3 ProGuard / R8
 
-ZXing 通过 `Class.forName` 加载各码制 Reader。我们**只**需要 `QRCodeReader`，
-所以在 `proguard-rules.pro` 里 keep 的范围严格收窄：
+ZXing 通过 `Class.forName` 加载各码制 Reader。当前在 `proguard-rules.pro` 里
+对 `com.google.zxing.**` 与 `com.journeyapps.barcodescanner.**` 整库 keep。
+这是排查 release 扫码失效时扩大的范围，**保留**作为防御策略：
 
 ```proguard
--keep class com.google.zxing.qrcode.QRCodeReader { *; }
--keep class com.journeyapps.barcodescanner.BarcodeView { *; }
--keep class com.journeyapps.barcodescanner.ViewfinderView { *; }
--keep class com.journeyapps.barcodescanner.camera.** { *; }
+-keep class com.google.zxing.** { *; }
+-keep class com.journeyapps.barcodescanner.** { *; }
 ```
 
-新增码制（条形码 / DataMatrix）才需要扩展，否则**不要 keep 整个 zxing 包**。
+配套：[gradle.properties](./gradle.properties) 中 `android.enableR8.fullMode=false`
+**不要重开**（详见第 4 节红线 #9）。当前组合（标准 R8 + 整库 keep + fullMode 关）
+已在物理机验证扫码与相册识图均正常，包体仍 ≈ 7.3MB 基线内。
 
 ## 7. UI / Insets
 

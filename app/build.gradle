@@ -64,6 +64,9 @@ android {
                 signingConfig signingConfigs.release
             }
             minifyEnabled true
+            // shrinkResources 保持开启：它本身无问题。release 扫码失效的
+            // 真凶是 R8 fullMode（详见 gradle.properties 注释），已通过关闭
+            // fullMode 解决，shrinkResources 可以正常压缩资源以减小包体。
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
