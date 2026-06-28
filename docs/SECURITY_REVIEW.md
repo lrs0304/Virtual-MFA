@@ -107,7 +107,17 @@
 
 > v0.1：未引入新依赖；仅新增 4 个 Java 类、3 张 layout/drawable 修改、若干 string。
 > v0.2：只新增 1 个 Java 类（SettingsActivity）+ 1 张 layout + 11 条 string，未引入任何依赖。
-> 预估 release APK 体积变化：**+15 ~ +25 KB**，仍在 7.3 MB 基线内。
-> 实测数据请参考本轮 `feat: release APK size verification` 提交中的记录。
+>
+> **实测数据**（arm64-v8a release APK）：
+>
+> | 节点 | 字节 | 备注 |
+> |---|---|---|
+> | main 基线 (commit 863a071) | 7,389,752 | README 中标注的 ≈ 7.3MB |
+> | 本分支 HEAD | **7,686,362** | 净增 **+296,610 B（≈ +290 KB）** |
+> | 8MB 红线 | 8,388,608 | 余量 **≈ 686 KB**，安全 |
+>
+> 增量主要来自 `classes.dex` 中的 SettingsActivity / 拖拽逻辑 / Snackbar / IssuerIconDrawable
+> / ClipboardCleaner / UiPreferences / 测试修复后的 R8 代码图变化；libbarhopper.so 与
+> ML Kit 模型未变。
 
 — Sam · 2026
