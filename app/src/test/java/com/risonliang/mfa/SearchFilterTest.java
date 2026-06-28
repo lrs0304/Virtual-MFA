@@ -14,14 +14,24 @@ import static org.junit.Assert.assertTrue;
 /**
  * 验证 T1 主列表搜索的过滤逻辑（issuer / account 任一字段大小写不敏感包含命中）。
  * 与 MainActivity 中的 matches 实现保持一致。
+ *
+ * 契约说明：MainActivity.applyFilter() 会先把 currentQuery_ 通过
+ * toLowerCase(Locale.ROOT) 归一化后再传给 matches；本测试包装为了
+ * 直接表达"用户输入大小写不敏感"的对外语义，在入口处先做一次同样的
+ * 归一化，避免调用方需要记忆这个隐式约定。
  */
 public class SearchFilterTest {
 
-    /** 复制 MainActivity 中的 matches 语义，单测里独立实现，避免依赖 Android。 */
-    private static boolean matches(OtpAccount acc, String needleLower) {
-        if (acc == null) {
+    /**
+     * 复制 MainActivity 中的 matches 语义，单测里独立实现，避免依赖 Android。
+     * needle 在内部归一化为小写，与 MainActivity.applyFilter() 的入口对齐：
+     * 这里做归一化等价于"先 lower 再调用 matches"。
+     */
+    private static boolean matches(OtpAccount acc, String needle) {
+        if (acc == null || needle == null) {
             return false;
         }
+        String needleLower = needle.toLowerCase(Locale.ROOT);
         if (acc.issuer != null
                 && acc.issuer.toLowerCase(Locale.ROOT).contains(needleLower)) {
             return true;
