@@ -22,6 +22,14 @@
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
+            <ImageView
+                android:id="@+id/iv_issuer_icon"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="12dp"
+                android:contentDescription="@null"
+                android:importantForAccessibility="no" />
+
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -71,6 +79,20 @@
             android:letterSpacing="0.15"
             android:fontFamily="monospace"
             android:text="123 456" />
+
+        <!-- 下一码预览：仅在剩余 ≤5s 且偏好开启时由代码 setVisibility 显示 -->
+        <TextView
+            android:id="@+id/tv_next_code"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:visibility="gone"
+            tools:ignore="HardcodedText"
+            xmlns:tools="http://schemas.android.com/tools"
+            android:text="下一码 654 321" />
 
         <ProgressBar
             android:id="@+id/pb_remaining"

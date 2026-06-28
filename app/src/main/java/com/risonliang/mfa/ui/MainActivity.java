@@ -3,8 +3,6 @@
  */
 package com.risonliang.mfa.ui;
 
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
@@ -22,7 +20,9 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Editable;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
@@ -30,6 +30,8 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -42,6 +44,7 @@ import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.snackbar.Snackbar;
 import com.google.mlkit.vision.barcode.BarcodeScanner;
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
 import com.google.mlkit.vision.barcode.BarcodeScanning;
@@ -60,9 +63,11 @@ import com.risonliang.mfa.data.GaMigrationDecoder;
 import com.risonliang.mfa.data.OtpRepository;
 import com.risonliang.mfa.data.OtpUriParser;
 import com.risonliang.mfa.model.OtpAccount;
+import com.risonliang.mfa.security.ClipboardCleaner;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -74,8 +79,21 @@ public class MainActivity extends BaseSecureActivity {
 
     private RecyclerView rvAccounts_;
     private TextView tvEmpty_;
+    private EditText etSearch_;
+    private ImageButton btnSearchClear_;
     private OtpAdapter adapter_;
+    /** 适配器实际渲染的列表（受搜索条件过滤）。 */
     private final List<OtpAccount> data_ = new ArrayList<>();
+    /** 全量数据缓存：搜索过滤的输入源，避免重复读 DB。 */
+    private final List<OtpAccount> allData_ = new ArrayList<>();
+    /** 当前搜索词（trim 后的小写）。空字符串表示无过滤。 */
+    private String currentQuery_ = "";
+    /**
+     * 临时显形超时类型型装载：帐号 id → 该帐号可见明文验证码的截止时间戳（ms）。
+     * 超过该时间后 renderCode 重新走默认隔离分支。
+     */
+    private final java.util.Map<Long, Long> revealUntilMs_ = new HashMap<>();
+    private static final long kRevealDurationMs = 5_000L;
     private final Handler tickHandler_ = new Handler(Looper.getMainLooper());
     private ActivityResultLauncher<Intent> scanLauncher_;
     private ActivityResultLauncher<String> albumLauncher_;
@@ -110,10 +128,14 @@ public class MainActivity extends BaseSecureActivity {
 
         rvAccounts_ = findViewById(R.id.rv_accounts);
         tvEmpty_ = findViewById(R.id.tv_empty);
+        etSearch_ = findViewById(R.id.et_search);
+        btnSearchClear_ = findViewById(R.id.btn_search_clear);
         rvAccounts_.setLayoutManager(new LinearLayoutManager(this));
-        adapter_ = new OtpAdapter(data_, this::onItemClick, this::onItemLong);
+        adapter_ = new OtpAdapter(data_, this::onItemClick, this::onItemLong,
+                this::isCodeRevealed);
         rvAccounts_.setAdapter(adapter_);
         attachSwipeToDelete();
+        attachSearch();
 
         FloatingActionButton fab = findViewById(R.id.fab_add);
         fab.setOnClickListener(v -> showAddSheet());
@@ -193,6 +215,10 @@ public class MainActivity extends BaseSecureActivity {
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         int id = item.getItemId();
+        if (id == R.id.action_settings) {
+            startActivity(new Intent(this, SettingsActivity.class));
+            return true;
+        }
         if (id == R.id.action_import_export) {
             startActivity(new Intent(this, ImportExportActivity.class));
             return true;
@@ -224,15 +250,128 @@ public class MainActivity extends BaseSecureActivity {
 
     private void reload() {
         try {
-            data_.clear();
-            data_.addAll(OtpRepository.get(this).listAll());
-            adapter_.notifyDataSetChanged();
-            tvEmpty_.setVisibility(data_.isEmpty() ? View.VISIBLE : View.GONE);
+            allData_.clear();
+            allData_.addAll(OtpRepository.get(this).listAll());
+            applyFilter();
         } catch (Exception e) {
             Toast.makeText(this,
                     getString(R.string.error_load_failed, e.getMessage()),
                     Toast.LENGTH_SHORT).show();
         }
+    }
+
+    /**
+     * 绑定搜索栏：文本变化时即时过滤；清除按钮一键还原全量列表。
+     * 仅做本地 issuer / account 字段大小写不敏感的子串匹配，不涉及 secret。
+     */
+    private void attachSearch() {
+        if (etSearch_ == null) {
+            return;
+        }
+        etSearch_.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start,
+                                          int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start,
+                                      int before, int count) {}
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                String q = s == null ? "" : s.toString().trim();
+                currentQuery_ = q;
+                if (btnSearchClear_ != null) {
+                    btnSearchClear_.setVisibility(
+                            q.isEmpty() ? View.GONE : View.VISIBLE);
+                }
+                applyFilter();
+            }
+        });
+        if (btnSearchClear_ != null) {
+            btnSearchClear_.setOnClickListener(v -> {
+                etSearch_.setText("");
+            });
+        }
+    }
+
+    /**
+     * 根据 {@link #currentQuery_} 过滤 {@link #allData_} → {@link #data_}，
+     * 并刷新空态文案。空查询直接全量回填，避免不必要的字符串比较。
+     */
+    private void applyFilter() {
+        data_.clear();
+        if (currentQuery_.isEmpty()) {
+            data_.addAll(allData_);
+        } else {
+            String needle = currentQuery_.toLowerCase(java.util.Locale.ROOT);
+            for (OtpAccount acc : allData_) {
+                if (matches(acc, needle)) {
+                    data_.add(acc);
+                }
+            }
+        }
+        adapter_.notifyDataSetChanged();
+        if (data_.isEmpty()) {
+            tvEmpty_.setVisibility(View.VISIBLE);
+            tvEmpty_.setText(currentQuery_.isEmpty()
+                    ? getString(R.string.empty_tip)
+                    : getString(R.string.empty_search_tip, currentQuery_));
+        } else {
+            tvEmpty_.setVisibility(View.GONE);
+        }
+    }
+
+    /** issuer / account 任一字段含查询词（小写）即视为命中。 */
+    private static boolean matches(OtpAccount acc, String needleLower) {
+        if (acc == null) {
+            return false;
+        }
+        if (acc.issuer != null
+                && acc.issuer.toLowerCase(java.util.Locale.ROOT)
+                        .contains(needleLower)) {
+            return true;
+        }
+        if (acc.account != null
+                && acc.account.toLowerCase(java.util.Locale.ROOT)
+                        .contains(needleLower)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 展示删除撤销 Snackbar：10 秒内点击"撤销"则把账号重新插入回库。
+     *
+     * 注意：账号 id 在新插入时会由 SQLite 重新分配，sortOrder 会回到当前末尾，
+     * 与原条目的相对顺序可能略有差异；不持久化"原 sortOrder"是为了保持
+     * Repository 层结构尽可能简单，且对用户体验没有可感知影响。
+     */
+    private void showUndoDeleteSnackbar(OtpAccount snapshot) {
+        if (snapshot == null) {
+            return;
+        }
+        View root = findViewById(R.id.root_main);
+        if (root == null) {
+            return;
+        }
+        String title = snapshot.displayLabel();
+        Snackbar bar = Snackbar.make(root,
+                getString(R.string.delete_done_with_undo, title),
+                10_000);
+        bar.setAction(R.string.action_undo, v -> {
+            try {
+                // id 字段重置：让 SQLite 重新分配，避免主键冲突。
+                snapshot.id = 0;
+                OtpRepository.get(this).insert(snapshot);
+                reload();
+            } catch (Exception e) {
+                Toast.makeText(this,
+                        getString(R.string.error_save_failed, e.getMessage()),
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
+        bar.show();
     }
 
     private void showAddSheet() {
@@ -650,17 +789,94 @@ public class MainActivity extends BaseSecureActivity {
             code = OtpGenerator.totp(acc.secret, acc.algorithm,
                     acc.digits, acc.period, now);
         }
-        ClipboardManager cm = (ClipboardManager) getSystemService(
-                Context.CLIPBOARD_SERVICE);
-        if (cm != null) {
-            cm.setPrimaryClip(ClipData.newPlainText("otp", code));
-            Toast.makeText(this, R.string.copied,
+        // T3：若开启了"隐藏验证码"，则把当前条目加入 5s 显形窗口；
+        // 否则不影响（下次 tick 渲染走默认路径）。
+        if (UiPreferences.get(this).isHideCodes()) {
+            revealUntilMs_.put(acc.id, now + kRevealDurationMs);
+            int idx = data_.indexOf(acc);
+            if (idx >= 0) {
+                adapter_.notifyItemChanged(idx);
+            }
+        }
+        ClipboardCleaner.get(this).copyOtp("otp", code,
+                ClipboardCleaner.kDefaultClearDelayMs);
+        Toast.makeText(this, R.string.copied_with_clear,
+                Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * 供 OtpAdapter 询问"某账号此刻是否处于临时显形窗口"。
+     * 自带过期清理，调用后表自动收缩。
+     */
+    private boolean isCodeRevealed(long accountId) {
+        Long until = revealUntilMs_.get(accountId);
+        if (until == null) {
+            return false;
+        }
+        if (System.currentTimeMillis() < until) {
+            return true;
+        }
+        revealUntilMs_.remove(accountId);
+        return false;
+    }
+
+    /**
+     * 长按弹出条目操作菜单：编辑 / 置顶（或取消置顶）/ 删除。
+     * 删除入口与左滑删除走同一个 confirm + Snackbar 撤销路径，避免不一致。
+     */
+    private void onItemLong(OtpAccount acc) {
+        CharSequence[] items = new CharSequence[]{
+                getString(R.string.action_edit),
+                getString(acc.favorite
+                        ? R.string.action_unpin
+                        : R.string.action_pin),
+                getString(R.string.action_delete)
+        };
+        new AlertDialog.Builder(this)
+                .setTitle(acc.displayLabel())
+                .setItems(items, (d, which) -> {
+                    if (which == 0) {
+                        showEditDialog(acc);
+                    } else if (which == 1) {
+                        toggleFavorite(acc);
+                    } else if (which == 2) {
+                        confirmDelete(acc);
+                    }
+                })
+                .setNegativeButton(R.string.dialog_cancel, null)
+                .show();
+    }
+
+    /** 切换收藏置顶状态：仅写一列 + 重新加载列表，不影响 secret 路径。 */
+    private void toggleFavorite(OtpAccount acc) {
+        boolean target = !acc.favorite;
+        try {
+            OtpRepository.get(this).setFavorite(acc.id, target);
+            acc.favorite = target;
+            reload();
+        } catch (Exception e) {
+            Toast.makeText(this,
+                    getString(R.string.error_save_failed, e.getMessage()),
                     Toast.LENGTH_SHORT).show();
         }
     }
 
+    /** 提取出来的"二次确认 + 软删除 + Snackbar 撤销"流程，长按和滑动共用。 */
+    private void confirmDelete(OtpAccount acc) {
+        new AlertDialog.Builder(this)
+                .setTitle(acc.displayLabel())
+                .setMessage(R.string.confirm_delete)
+                .setNegativeButton(R.string.dialog_cancel, null)
+                .setPositiveButton(R.string.dialog_ok, (d, w) -> {
+                    OtpRepository.get(this).delete(acc.id);
+                    reload();
+                    showUndoDeleteSnackbar(acc);
+                })
+                .show();
+    }
+
     /** 长按改为编辑：仅允许修改 issuer / account，不动 secret。 */
-    private void onItemLong(OtpAccount acc) {
+    private void showEditDialog(OtpAccount acc) {
         View dialogView = LayoutInflater.from(this)
                 .inflate(R.layout.dialog_edit_account, null, false);
         final EditText etIssuer = dialogView.findViewById(R.id.et_edit_issuer);
@@ -698,10 +914,14 @@ public class MainActivity extends BaseSecureActivity {
                 .show();
     }
 
-    /** 左滑删除（带二次确认）；取消则恢复条目。背景圆角与卡片保持一致。 */
+    /**
+     * 为列表绑定拖拽排序 + 左滑删除。
+     * 拖拽：长按 item 在豆点区可上下拖动调整顺序，抬手时事务批量写回 sortOrder。
+     * 为避免搜索过滤态下 data_ 只是 allData_ 的子集造成原序错乱，
+     * 仅在无搜索词时启用拖动。
+     */
     private void attachSwipeToDelete() {
-        ItemTouchHelper.SimpleCallback cb = new ItemTouchHelper.SimpleCallback(
-                0, ItemTouchHelper.LEFT) {
+        ItemTouchHelper.Callback cb = new ItemTouchHelper.Callback() {
             private final Paint bgPaint_ = new Paint(Paint.ANTI_ALIAS_FLAG);
             private final Paint textPaint_ = new Paint(Paint.ANTI_ALIAS_FLAG);
             private final Rect textBounds_ = new Rect();
@@ -723,6 +943,8 @@ public class MainActivity extends BaseSecureActivity {
             private final int marginVPx_ = (int) TypedValue.applyDimension(
                     TypedValue.COMPLEX_UNIT_DIP, 6f,
                     getResources().getDisplayMetrics());
+            /** 本次拖拽是否发生过位置变化，决定 clearView 是否需要落库。 */
+            private boolean dragMoved_;
 
             {
                 bgPaint_.setColor(androidx.core.content.ContextCompat.getColor(
@@ -734,10 +956,91 @@ public class MainActivity extends BaseSecureActivity {
             }
 
             @Override
+            public int getMovementFlags(@NonNull RecyclerView rv,
+                                        @NonNull RecyclerView.ViewHolder vh) {
+                // 搜索过滤态下仅保留左滑删除；仅在全量列表下才启用拖拽。
+                int swipe = ItemTouchHelper.LEFT;
+                int drag = currentQuery_.isEmpty()
+                        ? (ItemTouchHelper.UP | ItemTouchHelper.DOWN) : 0;
+                return makeMovementFlags(drag, swipe);
+            }
+
+            @Override
+            public boolean isLongPressDragEnabled() {
+                // 仅全量列表下才允许长按发起拖动，避免过滤态详顺序错乱。
+                return currentQuery_.isEmpty();
+            }
+
+            @Override
+            public boolean isItemViewSwipeEnabled() {
+                return true;
+            }
+
+            @Override
             public boolean onMove(@NonNull RecyclerView rv,
                                   @NonNull RecyclerView.ViewHolder vh,
                                   @NonNull RecyclerView.ViewHolder target) {
-                return false;
+                int from = vh.getBindingAdapterPosition();
+                int to = target.getBindingAdapterPosition();
+                if (from < 0 || to < 0
+                        || from >= data_.size() || to >= data_.size()) {
+                    return false;
+                }
+                // 收藏分区隔离：仅允许在同一 favorite 状态内拖动，避免出现
+                // "把一个非收藏拖到收藏区然后顺序错乱"的视觉/语义不一致。
+                // 用户想跨区移动应通过长按菜单"取消置顶"先改变分区。
+                if (data_.get(from).favorite != data_.get(to).favorite) {
+                    return false;
+                }
+                // 同步调整 data_ 与 allData_（两者在未过滤时为同顺序，但不是同一个
+                // List 引用），其中主要列表是 data_；ClearView 时按 data_ 顺序写回 DB。
+                java.util.Collections.swap(data_, from, to);
+                if (from < allData_.size() && to < allData_.size()) {
+                    java.util.Collections.swap(allData_, from, to);
+                }
+                adapter_.notifyItemMoved(from, to);
+                dragMoved_ = true;
+                return true;
+            }
+
+            @Override
+            public void onSelectedChanged(
+                    @androidx.annotation.Nullable RecyclerView.ViewHolder vh,
+                    int actionState) {
+                super.onSelectedChanged(vh, actionState);
+                if (actionState == ItemTouchHelper.ACTION_STATE_DRAG
+                        && vh != null) {
+                    // 拖拽中轻微隐去阴影提示“拿起”状态；在 clearView 中复原。
+                    vh.itemView.setAlpha(0.85f);
+                    vh.itemView.setScaleX(1.02f);
+                    vh.itemView.setScaleY(1.02f);
+                }
+            }
+
+            @Override
+            public void clearView(@NonNull RecyclerView rv,
+                                  @NonNull RecyclerView.ViewHolder vh) {
+                super.clearView(rv, vh);
+                vh.itemView.setAlpha(1f);
+                vh.itemView.setScaleX(1f);
+                vh.itemView.setScaleY(1f);
+                if (!dragMoved_) {
+                    return;
+                }
+                dragMoved_ = false;
+                // 抓一份 id 快照后用后台线程事务批量更新，避免阻塞主线程。
+                long[] orderedIds = new long[data_.size()];
+                for (int i = 0; i < data_.size(); i++) {
+                    orderedIds[i] = data_.get(i).id;
+                }
+                bgExecutor_.execute(() -> {
+                    try {
+                        OtpRepository.get(MainActivity.this)
+                                .updateSortOrder(orderedIds);
+                    } catch (Exception e) {
+                        Log.w(kLogTag, "persist sortOrder failed", e);
+                    }
+                });
             }
 
             @Override
@@ -756,8 +1059,13 @@ public class MainActivity extends BaseSecureActivity {
                         .setOnCancelListener(
                                 d -> adapter_.notifyItemChanged(pos))
                         .setPositiveButton(R.string.dialog_ok, (d, w) -> {
-                            OtpRepository.get(MainActivity.this).delete(acc.id);
+                            // 软删除：先记住完整 OtpAccount（含 secret 明文）以便撤销，
+                            // 再从数据库中删除。Snackbar 10s 内点击"撤销"则重新插入。
+                            OtpAccount snapshot = acc;
+                            OtpRepository.get(MainActivity.this)
+                                    .delete(snapshot.id);
                             reload();
+                            showUndoDeleteSnackbar(snapshot);
                         })
                         .show();
             }
@@ -806,6 +1114,7 @@ public class MainActivity extends BaseSecureActivity {
             extends RecyclerView.Adapter<OtpAdapter.VH> {
 
         interface ItemAction { void on(OtpAccount acc); }
+        interface RevealQuery { boolean isRevealed(long accountId); }
 
         /** payload 标识：脱敏遮罩刷新。 */
         private static final Object kPayloadMask = new Object();
@@ -813,12 +1122,14 @@ public class MainActivity extends BaseSecureActivity {
         private final List<OtpAccount> data_;
         private final ItemAction onClick_;
         private final ItemAction onLong_;
+        private final RevealQuery reveal_;
 
         OtpAdapter(List<OtpAccount> data, ItemAction onClick,
-                   ItemAction onLong) {
+                   ItemAction onLong, RevealQuery reveal) {
             data_ = data;
             onClick_ = onClick;
             onLong_ = onLong;
+            reveal_ = reveal;
             setHasStableIds(true);
         }
 
@@ -838,7 +1149,7 @@ public class MainActivity extends BaseSecureActivity {
         @Override
         public void onBindViewHolder(@NonNull VH h, int position) {
             OtpAccount acc = data_.get(position);
-            h.bind(acc);
+            h.bind(acc, reveal_);
             h.itemView.setOnClickListener(v -> onClick_.on(acc));
             h.itemView.setOnLongClickListener(v -> {
                 onLong_.on(acc);
@@ -863,7 +1174,7 @@ public class MainActivity extends BaseSecureActivity {
                 if (payloads.contains(kPayloadMask)) {
                     h.maskCode();
                 } else {
-                    h.refreshCode(data_.get(position));
+                    h.refreshCode(data_.get(position), reveal_);
                 }
             } else {
                 onBindViewHolder(h, position);
@@ -877,45 +1188,68 @@ public class MainActivity extends BaseSecureActivity {
 
         static final class VH extends RecyclerView.ViewHolder {
             private static final int kWarnThresholdSec = 5;
+            /** 隐藏验证码时的默认遮罩字符串（与 6 位对齐）。 */
+            private static final String kHiddenMask = "••• •••";
 
+            final ImageView ivIcon_;
             final TextView tvIssuer_;
             final TextView tvAccount_;
             final TextView tvCode_;
+            final TextView tvNextCode_;
             final TextView tvRemaining_;
             final ProgressBar pb_;
 
             VH(View v) {
                 super(v);
+                ivIcon_ = v.findViewById(R.id.iv_issuer_icon);
                 tvIssuer_ = v.findViewById(R.id.tv_issuer);
                 tvAccount_ = v.findViewById(R.id.tv_account);
                 tvCode_ = v.findViewById(R.id.tv_code);
+                tvNextCode_ = v.findViewById(R.id.tv_next_code);
                 tvRemaining_ = v.findViewById(R.id.tv_remaining);
                 pb_ = v.findViewById(R.id.pb_remaining);
             }
 
-            void bind(OtpAccount acc) {
-                tvIssuer_.setText(acc.issuer == null ? "" : acc.issuer);
+            void bind(OtpAccount acc, RevealQuery reveal) {
+                String issuerText = acc.issuer == null ? "" : acc.issuer;
+                // T9：收藏置顶在 issuer 前加 ★，零新增资源；不影响搜索匹配语义，
+                // 因为 matches() 走的是 acc.issuer 字段而非这里的渲染文本。
+                if (acc.favorite) {
+                    issuerText = "★ " + issuerText;
+                }
+                tvIssuer_.setText(issuerText);
                 tvAccount_.setText(acc.account == null ? "" : acc.account);
-                refreshCode(acc);
+                if (ivIcon_ != null) {
+                    ivIcon_.setImageDrawable(
+                            new IssuerIconDrawable(acc.issuer, acc.account));
+                }
+                refreshCode(acc, reveal);
             }
 
             /** 后台遮罩：仅显示占位字符，不暴露真实验证码。 */
             void maskCode() {
                 tvCode_.setText("•• ••• •••");
+                tvNextCode_.setVisibility(View.GONE);
                 tvRemaining_.setText("");
                 pb_.setProgress(0);
             }
 
-            void refreshCode(OtpAccount acc) {
+            void refreshCode(OtpAccount acc, RevealQuery reveal) {
+                Context ctx = itemView.getContext();
+                UiPreferences uiPrefs = UiPreferences.get(ctx);
+                boolean hideByPref = uiPrefs.isHideCodes();
+                boolean revealed = reveal != null && reveal.isRevealed(acc.id);
+                boolean shouldHide = hideByPref && !revealed;
+
                 if (acc.isHotp()) {
                     // HOTP：显示当前计数器对应的验证码，无倒计时
                     String code = OtpGenerator.hotp(acc.secret, acc.algorithm,
                             acc.digits, acc.counter);
-                    tvCode_.setText(formatCode(code));
-                    tvRemaining_.setText(itemView.getContext().getString(
-                            R.string.hotp_tap_hint));
+                    tvCode_.setText(shouldHide ? kHiddenMask : formatCode(code));
+                    tvNextCode_.setVisibility(View.GONE);
+                    tvRemaining_.setText(ctx.getString(R.string.hotp_tap_hint));
                     int color = androidx.core.content.ContextCompat.getColor(
-                            itemView.getContext(), R.color.progress_active);
+                            ctx, R.color.progress_active);
                     tvRemaining_.setTextColor(color);
                     pb_.setVisibility(View.GONE);
                 } else {
@@ -924,7 +1258,7 @@ public class MainActivity extends BaseSecureActivity {
                     long now = System.currentTimeMillis();
                     String code = OtpGenerator.totp(acc.secret, acc.algorithm,
                             acc.digits, acc.period, now);
-                    tvCode_.setText(formatCode(code));
+                    tvCode_.setText(shouldHide ? kHiddenMask : formatCode(code));
                     int remain = OtpGenerator.remainingSeconds(acc.period, now);
                     pb_.setMax(acc.period);
                     pb_.setProgress(remain);
@@ -933,11 +1267,27 @@ public class MainActivity extends BaseSecureActivity {
                             ? R.color.progress_warn
                             : R.color.progress_active;
                     int color = androidx.core.content.ContextCompat.getColor(
-                            itemView.getContext(), colorRes);
+                            ctx, colorRes);
                     tintProgress(pb_, color);
                     tvRemaining_.setTextColor(color);
-                    tvRemaining_.setText(itemView.getContext().getString(
+                    tvRemaining_.setText(ctx.getString(
                             R.string.fmt_remaining_seconds, remain));
+
+                    // T4：剩余 ≤5s 且偏好开启时、且不隐藏时，呈现下一码。
+                    if (!shouldHide && uiPrefs.isShowNextCode()
+                            && remain <= kWarnThresholdSec) {
+                        long nextWindowStart =
+                                ((now / 1000L) / acc.period + 1) * acc.period
+                                        * 1000L;
+                        String nextCode = OtpGenerator.totp(acc.secret,
+                                acc.algorithm, acc.digits, acc.period,
+                                nextWindowStart);
+                        tvNextCode_.setText(ctx.getString(
+                                R.string.fmt_next_code, formatCode(nextCode)));
+                        tvNextCode_.setVisibility(View.VISIBLE);
+                    } else {
+                        tvNextCode_.setVisibility(View.GONE);
+                    }
                 }
             }
 

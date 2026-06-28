@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  搜索框背景：白底圆角胶囊，与品牌蓝 AppBar 形成清晰对比。
+  Copyright (c) 2026 risonliang. All rights reserved.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FFFFFF" />
+    <corners android:radius="20dp" />
+</shape>

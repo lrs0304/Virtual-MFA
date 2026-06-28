@@ -98,6 +98,12 @@
             android:exported="false"
             android:label="@string/title_import_export"
             android:parentActivityName=".ui.MainActivity" />
+
+        <activity
+            android:name=".ui.SettingsActivity"
+            android:exported="false"
+            android:label="@string/title_settings"
+            android:parentActivityName=".ui.MainActivity" />
     </application>
 
 </manifest>

@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    English translation. Translation is intentionally kept faithful to
+    the original Chinese tone, while keeping the same string ids to
+    avoid runtime resource lookup failures.
+-->
+<resources>
+    <string name="app_name">MFA Authenticator</string>
+
+    <!-- Titles -->
+    <string name="title_main">My Codes</string>
+    <string name="title_add_manual">Add Manually</string>
+    <string name="title_scan">Scan QR Code</string>
+    <string name="title_import_export">Import / Export</string>
+
+    <!-- Home -->
+    <string name="empty_tip">No accounts yet. Tap the button below to add one.</string>
+    <string name="action_scan">Scan</string>
+    <string name="action_from_album">From Album</string>
+    <string name="action_manual">Add Manually</string>
+    <string name="action_import_export">Import / Export</string>
+    <string name="hint_search">Search accounts</string>
+    <string name="action_clear_search">Clear search</string>
+    <string name="empty_search_tip">No accounts match \"%1$s\"</string>
+    <string name="fmt_next_code">Next %1$s</string>
+    <string name="copied">Code copied</string>
+    <string name="copied_with_clear">Code copied (clipboard auto-clears in 30s)</string>
+    <string name="fmt_remaining_seconds">%1$ds</string>
+    <string name="title_add_account">Add account</string>
+    <string name="error_load_failed">Load failed: %1$s</string>
+    <string name="error_save_failed">Save failed: %1$s</string>
+
+    <!-- Manual add -->
+    <string name="hint_issuer">Issuer (e.g. Google)</string>
+    <string name="hint_account">Account (e.g. user@gmail.com)</string>
+    <string name="hint_secret">Secret (Base32)</string>
+    <string name="label_type">Type</string>
+    <string name="label_algorithm">Algorithm</string>
+    <string name="label_digits">Digits</string>
+    <string name="label_period">Period (s)</string>
+    <string name="label_counter">Counter</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="error_secret_invalid">Secret is not valid Base32</string>
+    <string name="error_required">Required field is empty</string>
+
+    <!-- Scan -->
+    <string name="scan_prompt">Align QR code within the frame</string>
+    <string name="error_qr_invalid">Not a valid OTP QR code</string>
+    <string name="error_qr_not_found">No QR code found in image</string>
+    <string name="error_image_read">Cannot read selected image</string>
+    <string name="decoding_image">Decoding QR code…</string>
+    <string name="permission_camera_denied">Camera permission required to scan</string>
+
+    <!-- GA migration -->
+    <string name="error_ga_migration_empty">No accounts found in migration QR</string>
+    <string name="ga_migration_success">Imported %1$d account(s)</string>
+    <string name="import_duplicate">Account already exists, skipped</string>
+    <string name="import_skipped">%1$d duplicate account(s) skipped</string>
+
+    <!-- Import / Export -->
+    <string name="action_export">Export Backup</string>
+    <string name="action_import">Import Backup</string>
+    <string name="hint_password">Backup password (≥6 chars)</string>
+    <string name="hint_password_confirm">Confirm password</string>
+    <string name="export_success">Export succeeded</string>
+    <string name="import_success">Imported: %1$d</string>
+    <string name="export_failed">Export failed</string>
+    <string name="import_failed">Import failed: wrong password or corrupt file</string>
+    <string name="password_mismatch">Passwords do not match</string>
+    <string name="password_too_short">Password must be at least 6 chars</string>
+    <string name="import_export_tip">Backup files are encrypted with AES-256-GCM using your password.\nKeep the password safe — losing it means losing the data.</string>
+    <string name="export_format_title">Choose export format</string>
+    <string name="export_format_2fa">Encrypted backup (.2fa)</string>
+    <string name="export_format_2fa_desc">Recommended: AES-256-GCM, password required</string>
+    <string name="export_format_csv">Plain CSV (.csv)</string>
+    <string name="export_format_csv_desc">Unencrypted; convenient for cross-tool migration. Handle with care.</string>
+    <string name="csv_warning_title">Plain CSV export risk</string>
+    <string name="csv_warning_message">A plain CSV stores ALL secrets in clear text. Anyone obtaining this file can generate your codes.\n\nOnly export when:\n• Migrating to another 2FA app\n• Temporarily backing up to trusted offline storage\n\nProceed with plain CSV export?</string>
+    <string name="csv_warning_continue">I understand, continue</string>
+    <string name="import_format_unknown">Unrecognized backup format</string>
+    <string name="badge_recommend">Recommended</string>
+    <string name="badge_high_risk">High risk</string>
+
+    <!-- Delete -->
+    <string name="action_delete">Delete</string>
+    <string name="action_undo">Undo</string>
+    <string name="delete_done_with_undo">Deleted \"%1$s\"</string>
+    <string name="confirm_delete">Delete this account? This cannot be undone.</string>
+    <string name="dialog_ok">OK</string>
+    <string name="dialog_cancel">Cancel</string>
+
+    <!-- Edit -->
+    <string name="title_edit_account">Edit account</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_pin">Pin to top</string>
+    <string name="action_unpin">Unpin</string>
+
+    <!-- Algorithms -->
+    <string-array name="algo_array">
+        <item>SHA1</item>
+        <item>SHA256</item>
+        <item>SHA512</item>
+    </string-array>
+
+    <!-- OTP types -->
+    <string-array name="type_array">
+        <item>TOTP (time-based)</item>
+        <item>HOTP (counter-based)</item>
+    </string-array>
+
+    <!-- HOTP -->
+    <string name="hotp_tap_hint">Tap to refresh</string>
+
+    <!-- App lock -->
+    <string name="lock_setup_title">Set app password</string>
+    <string name="lock_setup_subtitle">First time use. Set a 4-12 digit password to unlock the app.</string>
+    <string name="lock_unlock_title">Enter app password</string>
+    <string name="lock_pin_hint">4-12 digit password</string>
+    <string name="lock_pin_confirm_hint">Confirm</string>
+    <string name="lock_confirm">OK</string>
+    <string name="lock_use_biometric">Unlock with biometrics</string>
+    <string name="lock_pin_too_short">Password must be at least 4 digits</string>
+    <string name="lock_pin_mismatch">Entries do not match</string>
+    <string name="lock_pin_wrong">Incorrect password</string>
+    <string name="lock_setup_done">Password set</string>
+    <string name="lock_change_title">Change app password</string>
+    <string name="lock_change_old_subtitle">Enter your current password</string>
+    <string name="lock_change_new_subtitle">Enter new password (4-12 digits)</string>
+    <string name="lock_change_done">Password updated</string>
+    <string name="lock_change_entry">Change app password</string>
+    <string name="lock_enable_entry">Enable app password</string>
+    <string name="lock_disable_entry">Disable app password</string>
+    <string name="lock_disable_title">Disable app password</string>
+    <string name="lock_disable_subtitle">Enter your current password to disable</string>
+    <string name="lock_disable_done">App password disabled</string>
+    <string name="lock_biometric_title">Biometric unlock</string>
+    <string name="lock_biometric_subtitle">Quick unlock with fingerprint or face</string>
+    <string name="lock_biometric_negative">Use password</string>
+    <string name="lock_offline_tip">This app runs entirely offline. Data stays on this device.</string>
+
+    <!-- Settings -->
+    <string name="title_settings">Settings</string>
+    <string name="action_settings">Settings</string>
+    <string name="settings_section_display">Display</string>
+    <string name="settings_section_security">Security</string>
+    <string name="settings_hide_codes_title">Hide codes by default</string>
+    <string name="settings_hide_codes_summary">List items show a mask by default; tap an account to reveal the code for 5 seconds, reducing shoulder-surfing risk.</string>
+    <string name="settings_show_next_title">Preview next code when ≤5s left</string>
+    <string name="settings_show_next_summary">Reveal the upcoming code right before rollover so a paste does not expire instantly.</string>
+    <string name="settings_grace_title">Auto-lock grace period</string>
+    <string name="settings_grace_summary">After the app goes to background for this long, re-unlock is required. Longer = more convenient, less secure.</string>
+    <string name="settings_grace_0">Lock immediately (recommended, strictest)</string>
+    <string name="settings_grace_15">15 seconds</string>
+    <string name="settings_grace_30">30 seconds</string>
+    <string name="settings_grace_60">1 minute</string>
+    <string name="settings_grace_300">5 minutes</string>
+    <string name="settings_offline_tip">All preferences are stored on-device only. Zero networking.</string>
+</resources>

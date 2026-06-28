@@ -39,6 +39,11 @@ public final class AppLockManager {
     private static volatile AppLockManager sInstance;
 
     private final SharedPreferences prefs_;
+    /**
+     * 仅用于读取自动锁定宽限期偏好的 SP（与 UI 层 UiPreferences 同一文件）。
+     * security 层不直接依赖 ui 层类，仅共享 SP 名/key。
+     */
+    private final SharedPreferences uiPrefs_;
 
     /** 当前会话是否已解锁；进程内态。 */
     private volatile boolean unlocked_ = false;
@@ -65,6 +70,9 @@ public final class AppLockManager {
         // 直接使用普通 SharedPreferences：存储内容仅为 PBKDF2 哈希与盐值，
         // 不存在可逆明文秘密，无需依赖 EncryptedSharedPreferences。
         prefs_ = appCtx.getSharedPreferences(kPrefsName, Context.MODE_PRIVATE);
+        // 宽限期偏好：与 UI 层同名 SP（避免反向依赖）。
+        uiPrefs_ = appCtx.getSharedPreferences(
+                "mfa_ui_prefs", Context.MODE_PRIVATE);
     }
 
     /** 是否已设置 PIN（即是否完成首次初始化）。 */
@@ -191,9 +199,14 @@ public final class AppLockManager {
         }
         if (foregroundCount_ == 0) {
             backgroundAt_ = System.currentTimeMillis();
-            // 关键：真正进入后台（用户切桌面 / 切其它 App）即立刻清除解锁状态。
-            // 不引入时间宽限期——前台计数已经吞掉应用内跳转噪声。
-            unlocked_ = false;
+            // 进入后台时是否立刻清除解锁态，取决于是否配置了宽限期：
+            //  - 宽限期 = 0（默认）：保持原有"后台即锁"行为；unlocked_ 置 false；
+            //  - 宽限期 > 0：保留 unlocked_ = true，由 shouldRequireUnlock
+            //    根据 backgroundAt_ + grace 重新判定。
+            int grace = readGraceSeconds();
+            if (grace <= 0) {
+                unlocked_ = false;
+            }
         }
     }
 
@@ -208,13 +221,44 @@ public final class AppLockManager {
     /**
      * 回到前台时决定是否需要解锁。
      * 未启用应用密码 → 直接通过；
-     * unlocked_=false（含真正进入后台被清除的情况）→ 必须解锁。
+     * 在 onActivityStopped 中已根据 grace 决定是否置 false；这里额外验证一道：
+     * 仅当 unlocked_=true 且 (now - backgroundAt_) ≤ grace 时，才可跳过解锁。
      */
     public boolean shouldRequireUnlock() {
         if (!isLockEnabled()) {
             return false;
         }
-        return !unlocked_;
+        if (!unlocked_) {
+            return true;
+        }
+        // unlocked_ = true ：要么从未进过后台（backgroundAt_=0），要么 grace 未超过。
+        if (backgroundAt_ <= 0L) {
+            return false;
+        }
+        int grace = readGraceSeconds();
+        if (grace <= 0) {
+            // 避免与 onActivityStopped 的判定不一致：重新备份为锁定。
+            unlocked_ = false;
+            return true;
+        }
+        long elapsedMs = System.currentTimeMillis() - backgroundAt_;
+        if (elapsedMs > grace * 1000L) {
+            unlocked_ = false;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 读取当前设置的自动锁定宽限期（秒）。读取失败返回 0（默认安全）。
+     */
+    private int readGraceSeconds() {
+        try {
+            int v = uiPrefs_.getInt("auto_lock_grace_sec", 0);
+            return Math.max(0, v);
+        } catch (Exception ignore) {
+            return 0;
+        }
     }
 
     private static byte[] pbkdf2(char[] pin, byte[] salt) throws Exception {
