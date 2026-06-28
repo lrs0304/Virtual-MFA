@@ -4,6 +4,7 @@
 package com.risonliang.mfa.data;
 
 import android.util.Base64;
+import android.util.Log;
 import com.risonliang.mfa.crypto.Base32;
 import com.risonliang.mfa.model.OtpAccount;
 import java.nio.charset.StandardCharsets;
@@ -34,6 +35,7 @@ public final class GaMigrationDecoder {
 
     private static final String SCHEME = "otpauth-migration";
     private static final String PARAM_DATA = "data";
+    private static final String kLogTag = "MFA-Scan";
 
     private GaMigrationDecoder() {}
 
@@ -53,17 +55,34 @@ public final class GaMigrationDecoder {
     public static List<OtpAccount> decode(String uri) {
         List<OtpAccount> result = new ArrayList<>();
         if (uri == null) {
+            Log.w(kLogTag, "GaMigrationDecoder: input null");
             return result;
         }
         try {
             android.net.Uri parsed = android.net.Uri.parse(uri.trim());
             String dataParam = parsed.getQueryParameter(PARAM_DATA);
             if (dataParam == null || dataParam.isEmpty()) {
+                Log.w(kLogTag, "GaMigrationDecoder: missing data param");
                 return result;
             }
-            byte[] payload = Base64.decode(dataParam, Base64.DEFAULT);
-            return parseMigrationPayload(payload);
+            // GA 官方导出用标准 Base64（含 + / =），但部分实现可能用 URL-safe，
+            // 这里两种都试一下，避免因 Base64 变种导致 protobuf 解析失败。
+            byte[] payload;
+            try {
+                payload = Base64.decode(dataParam, Base64.DEFAULT);
+            } catch (IllegalArgumentException badStd) {
+                Log.d(kLogTag,
+                        "GaMigrationDecoder: standard Base64 failed, retry URL_SAFE");
+                payload = Base64.decode(dataParam,
+                        Base64.URL_SAFE | Base64.NO_PADDING);
+            }
+            Log.d(kLogTag, "GaMigrationDecoder: dataLen=" + dataParam.length()
+                    + ", payloadLen=" + (payload == null ? 0 : payload.length));
+            List<OtpAccount> list = parseMigrationPayload(payload);
+            Log.d(kLogTag, "GaMigrationDecoder: parsed accounts=" + list.size());
+            return list;
         } catch (Exception e) {
+            Log.e(kLogTag, "GaMigrationDecoder.decode failed", e);
             return result;
         }
     }

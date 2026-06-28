@@ -4,6 +4,7 @@
 package com.risonliang.mfa.data;
 
 import android.net.Uri;
+import android.util.Log;
 import com.risonliang.mfa.crypto.Base32;
 import com.risonliang.mfa.model.OtpAccount;
 import java.net.URLDecoder;
@@ -19,24 +20,30 @@ import java.util.Map;
  */
 public final class OtpUriParser {
 
+    private static final String kLogTag = "MFA-Scan";
+
     private OtpUriParser() {}
 
     public static OtpAccount parse(String uriStr) {
         if (uriStr == null) {
+            Log.w(kLogTag, "OtpUriParser: input null");
             return null;
         }
         Uri uri = Uri.parse(uriStr.trim());
         if (uri.getScheme() == null
                 || !"otpauth".equalsIgnoreCase(uri.getScheme())) {
+            Log.w(kLogTag, "OtpUriParser: bad scheme=" + uri.getScheme());
             return null;
         }
         String type = uri.getHost();
         if (type == null) {
+            Log.w(kLogTag, "OtpUriParser: missing host");
             return null;
         }
         boolean isTotp = "totp".equalsIgnoreCase(type);
         boolean isHotp = "hotp".equalsIgnoreCase(type);
         if (!isTotp && !isHotp) {
+            Log.w(kLogTag, "OtpUriParser: unsupported host=" + type);
             return null;
         }
 
@@ -65,6 +72,9 @@ public final class OtpUriParser {
         Map<String, String> params = parseQuery(uri);
         String secret = params.get("secret");
         if (secret == null || !Base32.isValid(secret)) {
+            Log.w(kLogTag, "OtpUriParser: invalid secret, present="
+                    + (secret != null) + ", len="
+                    + (secret == null ? 0 : secret.length()));
             return null;
         }
         acc.secret = secret;

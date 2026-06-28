@@ -94,6 +94,10 @@ dependencies {
     implementation libs.zxing.embedded
     implementation libs.zxing.core
 
+    // ML Kit 条码扫描（bundled 版，内嵌模型，完全离线）。
+    // 仅在 ZXing 全量管线失败后作为兜底使用，专治屏摄/水印噪点截图。
+    implementation libs.mlkit.barcode
+
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core

@@ -23,6 +23,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
@@ -41,9 +42,16 @@ import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.mlkit.vision.barcode.BarcodeScanner;
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
+import com.google.mlkit.vision.barcode.BarcodeScanning;
+import com.google.mlkit.vision.barcode.common.Barcode;
+import com.google.mlkit.vision.common.InputImage;
 import com.google.zxing.BinaryBitmap;
+import com.google.zxing.DecodeHintType;
 import com.google.zxing.RGBLuminanceSource;
 import com.google.zxing.Result;
+import com.google.zxing.common.GlobalHistogramBinarizer;
 import com.google.zxing.common.HybridBinarizer;
 import com.google.zxing.qrcode.QRCodeReader;
 import com.risonliang.mfa.R;
@@ -54,11 +62,15 @@ import com.risonliang.mfa.data.OtpUriParser;
 import com.risonliang.mfa.model.OtpAccount;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends BaseSecureActivity {
+
+    private static final String kLogTag = "MFA-Scan";
 
     private RecyclerView rvAccounts_;
     private TextView tvEmpty_;
@@ -281,6 +293,8 @@ public class MainActivity extends BaseSecureActivity {
             opts.inJustDecodeBounds = true;
             try (InputStream is = getContentResolver().openInputStream(imageUri)) {
                 if (is == null) {
+                    Log.w(kLogTag, "openInputStream returned null (bounds), uri="
+                            + imageUri);
                     runOnUiThread(() -> Toast.makeText(this,
                             R.string.error_image_read,
                             Toast.LENGTH_SHORT).show());
@@ -288,49 +302,58 @@ public class MainActivity extends BaseSecureActivity {
                 }
                 BitmapFactory.decodeStream(is, null, opts);
             }
-            // 计算降采样比例：目标最大边 1200px（足够识别二维码）
-            int maxDim = Math.max(opts.outWidth, opts.outHeight);
-            int sampleSize = 1;
-            while (maxDim / sampleSize > 1200) {
-                sampleSize *= 2;
+            int origW = opts.outWidth;
+            int origH = opts.outHeight;
+            int maxDim = Math.max(origW, origH);
+            // 截图里的二维码往往只占整图一小块，过早降采样会把模块缩到 1~2px，
+            // 直接导致 ZXing 找不到 finder pattern。
+            // 策略：在多个采样率上串行尝试，原图优先；每个采样率内尝试
+            // Hybrid/GlobalHistogram/Invert 三档快速二值化，作为 ML Kit 的
+            // 快速路径；ZXing 全部失败时才唤起 ML Kit 模型兜底。
+            int firstSample = 1;
+            while (maxDim / firstSample > 4096) {
+                firstSample *= 2;
             }
-            // 第二遍：按降采样比例加载
-            opts.inJustDecodeBounds = false;
-            opts.inSampleSize = sampleSize;
-            Bitmap bitmap;
-            try (InputStream is = getContentResolver().openInputStream(imageUri)) {
-                if (is == null) {
-                    runOnUiThread(() -> Toast.makeText(this,
-                            R.string.error_image_read,
-                            Toast.LENGTH_SHORT).show());
-                    return null;
-                }
-                bitmap = BitmapFactory.decodeStream(is, null, opts);
-            }
-            if (bitmap == null) {
-                runOnUiThread(() -> Toast.makeText(this,
-                        R.string.error_image_read,
-                        Toast.LENGTH_SHORT).show());
-                return null;
-            }
-            int width = bitmap.getWidth();
-            int height = bitmap.getHeight();
-            int[] pixels = new int[width * height];
-            bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
-            bitmap.recycle();
+            Log.d(kLogTag, "image bounds=" + origW + "x" + origH
+                    + ", mime=" + opts.outMimeType
+                    + ", firstSample=" + firstSample);
 
-            RGBLuminanceSource source =
-                    new RGBLuminanceSource(width, height, pixels);
-            BinaryBitmap binaryBitmap =
-                    new BinaryBitmap(new HybridBinarizer(source));
-            // 仅解码 QR 码（避免引入 PDF417/Aztec/DataMatrix 等其他码制类，
-            // 配合 ProGuard 可让 R8 剔除未使用的 Reader，缩小包体）
-            Result result = new QRCodeReader().decode(binaryBitmap);
-            String content = result.getText();
-            return (content == null) ? "" : content;
-        } catch (com.google.zxing.NotFoundException e) {
-            return "";
+            int[] sampleCandidates = {firstSample, firstSample * 2,
+                    firstSample * 4};
+            String content = null;
+            for (int s : sampleCandidates) {
+                if (maxDim / s < 200) {
+                    // 缩得太小已没识别价值，跳过
+                    continue;
+                }
+                if (content == null) {
+                    Log.d(kLogTag, "trying decode with sample=" + s);
+                    content = decodeQrWithSample(imageUri, s);
+                    if (content != null) {
+                        break;
+                    }
+                }
+            }
+            if (content == null) {
+                // ZXing 全管线失败：上 ML Kit 兜底（bundled 模型，离线，
+                // 对屏摄/水印噪点截图鲁棒性远强于 ZXing 的阈值二值化）。
+                Log.d(kLogTag, "ZXing missed, fallback to ML Kit");
+                content = decodeWithMlKit(imageUri, firstSample);
+            }
+            if (content == null) {
+                Log.w(kLogTag,
+                        "QRCode not found after all retries, origSize="
+                                + origW + "x" + origH
+                                + ", mime=" + opts.outMimeType
+                                + ", samplesTried="
+                                + java.util.Arrays.toString(sampleCandidates));
+                return "";
+            }
+            Log.d(kLogTag, "QR decoded, length=" + content.length()
+                    + ", schemePrefix=" + safeSchemePrefix(content));
+            return content;
         } catch (Exception e) {
+            Log.e(kLogTag, "decodeQrInBackground failed", e);
             runOnUiThread(() -> Toast.makeText(this,
                     R.string.error_image_read,
                     Toast.LENGTH_SHORT).show());
@@ -338,27 +361,242 @@ public class MainActivity extends BaseSecureActivity {
         }
     }
 
+    /**
+     * 以指定采样率读取图片并尝试解码二维码。失败返回 null，
+     * 由调用者决定是否换一个采样率重试。
+     */
+    private String decodeQrWithSample(Uri imageUri, int sampleSize) {
+        Bitmap bitmap = null;
+        try {
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inSampleSize = Math.max(1, sampleSize);
+            opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
+            try (InputStream is = getContentResolver().openInputStream(imageUri)) {
+                if (is == null) {
+                    Log.w(kLogTag,
+                            "openInputStream returned null (decode), sample="
+                                    + sampleSize);
+                    return null;
+                }
+                bitmap = BitmapFactory.decodeStream(is, null, opts);
+            }
+            if (bitmap == null) {
+                Log.w(kLogTag, "decodeStream returned null, sample="
+                        + sampleSize);
+                return null;
+            }
+            int width = bitmap.getWidth();
+            int height = bitmap.getHeight();
+            int[] pixels = new int[width * height];
+            bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
+
+            RGBLuminanceSource source =
+                    new RGBLuminanceSource(width, height, pixels);
+
+            // 准备 hints。开启 TRY_HARDER：以更慢的速度换取更高的识别成功率，
+            // 适用于相册截图、有压缩噪声、占比较小的二维码。
+            Map<DecodeHintType, Object> hints =
+                    new EnumMap<>(DecodeHintType.class);
+            hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
+
+            // ZXing 快速路径：依次尝试 Hybrid/GlobalHistogram/Invert 三档
+            // 二值化。这三档都很轻量，能覆盖绝大多数清晰截图；任何一档命中
+            // 都立即返回。复杂样本（屏摄/水印/噪点等）让外层走 ML Kit 兜底，
+            // 不再在 ZXing 这里堆 Cleaned/Multi 等高成本路径。
+
+            // 1) HybridBinarizer + TRY_HARDER：通用最佳。
+            String r = tryDecode(new BinaryBitmap(new HybridBinarizer(source)),
+                    hints, "Hybrid+TryHarder", width, height);
+            if (r != null) {
+                return r;
+            }
+            // 2) GlobalHistogramBinarizer + TRY_HARDER：对低对比度截图更友好。
+            r = tryDecode(
+                    new BinaryBitmap(new GlobalHistogramBinarizer(source)),
+                    hints, "GlobalHist+TryHarder", width, height);
+            if (r != null) {
+                return r;
+            }
+            // 3) 反色：极少数浅底深码 / 深底浅码翻转的截图。
+            BinaryBitmap inverted =
+                    new BinaryBitmap(new HybridBinarizer(source.invert()));
+            r = tryDecode(inverted, hints, "Hybrid+Invert", width, height);
+            return r;
+        } catch (Exception e) {
+            Log.w(kLogTag, "decodeQrWithSample(" + sampleSize + ") error: "
+                    + e.getClass().getSimpleName() + " " + e.getMessage());
+            return null;
+        } finally {
+            if (bitmap != null) {
+                bitmap.recycle();
+            }
+        }
+    }
+
+    /** 单次 ZXing 解码尝试，封装异常并记录耗时。 */
+    private static String tryDecode(BinaryBitmap bb,
+            Map<DecodeHintType, Object> hints, String label,
+            int w, int h) {
+        QRCodeReader reader = new QRCodeReader();
+        try {
+            Result result = reader.decode(bb, hints);
+            Log.d(kLogTag, "QR decode hit by " + label + ", size="
+                    + w + "x" + h);
+            return result.getText();
+        } catch (com.google.zxing.NotFoundException miss) {
+            return null;
+        } catch (Exception e) {
+            Log.w(kLogTag, "QR decode " + label + " threw: "
+                    + e.getClass().getSimpleName() + " " + e.getMessage());
+            return null;
+        } finally {
+            reader.reset();
+        }
+    }
+
+    /**
+     * ML Kit 兜底解码：仅在 ZXing 全管线失败时调用。
+     *
+     * 设计要点：
+     *  1) 复用与 ZXing 相同的 inSampleSize 策略读 Bitmap，避免大图 OOM；
+     *  2) 必须运行在后台线程（外层 bgExecutor_ 已经是后台线程）；
+     *     ML Kit 返回 Task 异步结果，这里用 CountDownLatch 同步等待，
+     *     与现有"返回 String"的同步签名保持一致；
+     *  3) 限制识别格式为 QR_CODE，加快速度；
+     *  4) 加 8 秒超时，避免极端情况下卡住后台线程；
+     *  5) BarcodeScanner 是 Closeable，使用 try-with-resources 正确释放
+     *     底层 native 模型句柄。
+     *
+     * @return 解码到的内容；任何失败返回 null。
+     */
+    private String decodeWithMlKit(Uri imageUri, int sampleSize) {
+        Bitmap bitmap = null;
+        try {
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inSampleSize = Math.max(1, sampleSize);
+            opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
+            try (InputStream is = getContentResolver().openInputStream(imageUri)) {
+                if (is == null) {
+                    Log.w(kLogTag, "ML Kit: openInputStream returned null");
+                    return null;
+                }
+                bitmap = BitmapFactory.decodeStream(is, null, opts);
+            }
+            if (bitmap == null) {
+                Log.w(kLogTag, "ML Kit: decodeStream returned null");
+                return null;
+            }
+
+            BarcodeScannerOptions scannerOpts =
+                    new BarcodeScannerOptions.Builder()
+                            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                            .build();
+            // rotationDegrees=0：截图都是正向的，不需要旋转。
+            InputImage input = InputImage.fromBitmap(bitmap, 0);
+            final String[] holder = new String[1];
+            final Throwable[] errHolder = new Throwable[1];
+            final java.util.concurrent.CountDownLatch latch =
+                    new java.util.concurrent.CountDownLatch(1);
+
+            try (BarcodeScanner scanner =
+                         BarcodeScanning.getClient(scannerOpts)) {
+                scanner.process(input)
+                        .addOnSuccessListener(barcodes -> {
+                            if (barcodes != null && !barcodes.isEmpty()) {
+                                Barcode b = barcodes.get(0);
+                                String raw = b.getRawValue();
+                                if (raw == null) {
+                                    // 部分二进制 QR 没有 rawValue，
+                                    // 退而求其次尝试 displayValue。
+                                    raw = b.getDisplayValue();
+                                }
+                                holder[0] = raw;
+                            }
+                            latch.countDown();
+                        })
+                        .addOnFailureListener(e -> {
+                            errHolder[0] = e;
+                            latch.countDown();
+                        });
+                if (!latch.await(8,
+                        java.util.concurrent.TimeUnit.SECONDS)) {
+                    Log.w(kLogTag, "ML Kit: timeout after 8s");
+                    return null;
+                }
+            }
+
+            if (errHolder[0] != null) {
+                Log.w(kLogTag, "ML Kit: process failed: "
+                        + errHolder[0].getClass().getSimpleName()
+                        + " " + errHolder[0].getMessage());
+                return null;
+            }
+            if (holder[0] == null) {
+                Log.w(kLogTag, "ML Kit: no QR found");
+                return null;
+            }
+            Log.d(kLogTag, "ML Kit: QR decoded, length="
+                    + holder[0].length()
+                    + ", schemePrefix=" + safeSchemePrefix(holder[0]));
+            return holder[0];
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            Log.w(kLogTag, "ML Kit: interrupted");
+            return null;
+        } catch (Exception e) {
+            Log.w(kLogTag, "ML Kit: unexpected error: "
+                    + e.getClass().getSimpleName() + " " + e.getMessage());
+            return null;
+        } finally {
+            if (bitmap != null) {
+                bitmap.recycle();
+            }
+        }
+    }
+
+    /** 仅取 scheme://host 段用于日志，避免把 secret 整段打到 logcat。 */
+    private static String safeSchemePrefix(String s) {
+        if (s == null) {
+            return "<null>";
+        }
+        int q = s.indexOf('?');
+        String head = q > 0 ? s.substring(0, q) : s;
+        if (head.length() > 64) {
+            head = head.substring(0, 64) + "...";
+        }
+        return head;
+    }
+
     private void handleScanResult(String content) {
         // 先尝试解析为 Google Authenticator 迁移格式
         if (GaMigrationDecoder.isMigrationUri(content)) {
+            Log.d(kLogTag, "handleScanResult: branch=GA_MIGRATION");
             handleGaMigration(content);
             return;
         }
         OtpAccount acc = OtpUriParser.parse(content);
         if (acc == null) {
+            Log.w(kLogTag, "OtpUriParser.parse returned null, prefix="
+                    + safeSchemePrefix(content));
             Toast.makeText(this, R.string.error_qr_invalid,
                     Toast.LENGTH_SHORT).show();
             return;
         }
         try {
             if (OtpRepository.get(this).exists(acc)) {
+                Log.d(kLogTag, "scan result duplicate, issuer="
+                        + acc.issuer + ", account=" + acc.account);
                 Toast.makeText(this, R.string.import_duplicate,
                         Toast.LENGTH_SHORT).show();
                 return;
             }
             OtpRepository.get(this).insert(acc);
+            Log.d(kLogTag, "scan result inserted, issuer="
+                    + acc.issuer + ", account=" + acc.account
+                    + ", type=" + acc.type);
             reload();
         } catch (Exception e) {
+            Log.e(kLogTag, "scan result save failed", e);
             Toast.makeText(this,
                     getString(R.string.error_save_failed, e.getMessage()),
                     Toast.LENGTH_SHORT).show();
@@ -368,6 +606,7 @@ public class MainActivity extends BaseSecureActivity {
     /** 处理 Google Authenticator 迁移二维码，批量导入。 */
     private void handleGaMigration(String uri) {
         List<OtpAccount> accounts = GaMigrationDecoder.decode(uri);
+        Log.d(kLogTag, "GaMigrationDecoder.decode size=" + accounts.size());
         if (accounts.isEmpty()) {
             Toast.makeText(this, R.string.error_ga_migration_empty,
                     Toast.LENGTH_SHORT).show();

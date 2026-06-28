@@ -19,6 +19,11 @@
 -keep class com.journeyapps.barcodescanner.camera.** { *; }
 -dontwarn com.journeyapps.barcodescanner.**
 
+# ML Kit 自身随 AAR 携带 consumer-rules，这里仅补一条 dontwarn 兜底，
+# 避免 release 构建时第三方依赖的可选类报警告。
+-dontwarn com.google.mlkit.**
+-dontwarn com.google.android.gms.**
+
 # 保留行号方便排查
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
