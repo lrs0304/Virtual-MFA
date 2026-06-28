@@ -88,6 +88,8 @@ public class MainActivity extends BaseSecureActivity {
     private final Handler tickHandler_ = new Handler(Looper.getMainLooper());
     private ActivityResultLauncher<Intent> scanLauncher_;
     private ActivityResultLauncher<String> albumLauncher_;
+    /** 图片编辑页（ImageEditActivity）回调：用户调整后识别成功的内容。 */
+    private ActivityResultLauncher<Intent> imageEditLauncher_;
     private final ExecutorService bgExecutor_ =
             Executors.newSingleThreadExecutor();
 
@@ -152,6 +154,21 @@ public class MainActivity extends BaseSecureActivity {
                 uri -> {
                     if (uri != null) {
                         decodeQrFromImage(uri);
+                    }
+                });
+
+        // 图片编辑页回调：用户在 ImageEditActivity 内调整后识别成功，
+        // 内容通过 EXTRA_RESULT 回传，按和扫码相同的路径处理。
+        imageEditLauncher_ = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK
+                            && result.getData() != null) {
+                        String content = result.getData().getStringExtra(
+                                ImageEditActivity.EXTRA_RESULT);
+                        if (content != null && !content.isEmpty()) {
+                            handleScanResult(content);
+                        }
                     }
                 });
     }
@@ -403,8 +420,12 @@ public class MainActivity extends BaseSecureActivity {
                 if (decoded == null) {
                     // 错误已在后台方法中标记，此处不重复提示
                 } else if (decoded.isEmpty()) {
+                    // ML Kit 首轮未识别 → 进入图片编辑页让用户手动调整后重识。
+                    // 不再仅一句 Toast 让用户卡死。
                     Toast.makeText(this, R.string.error_qr_not_found,
                             Toast.LENGTH_SHORT).show();
+                    imageEditLauncher_.launch(
+                            ImageEditActivity.newIntent(this, imageUri));
                 } else {
                     handleScanResult(decoded);
                 }
