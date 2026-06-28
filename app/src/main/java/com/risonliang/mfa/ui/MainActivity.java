@@ -43,6 +43,7 @@ import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.snackbar.Snackbar;
 import com.google.mlkit.vision.barcode.BarcodeScanner;
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
 import com.google.mlkit.vision.barcode.BarcodeScanning;
@@ -332,6 +333,40 @@ public class MainActivity extends BaseSecureActivity {
             return true;
         }
         return false;
+    }
+
+    /**
+     * 展示删除撤销 Snackbar：10 秒内点击"撤销"则把账号重新插入回库。
+     *
+     * 注意：账号 id 在新插入时会由 SQLite 重新分配，sortOrder 会回到当前末尾，
+     * 与原条目的相对顺序可能略有差异；不持久化"原 sortOrder"是为了保持
+     * Repository 层结构尽可能简单，且对用户体验没有可感知影响。
+     */
+    private void showUndoDeleteSnackbar(OtpAccount snapshot) {
+        if (snapshot == null) {
+            return;
+        }
+        View root = findViewById(R.id.root_main);
+        if (root == null) {
+            return;
+        }
+        String title = snapshot.displayLabel();
+        Snackbar bar = Snackbar.make(root,
+                getString(R.string.delete_done_with_undo, title),
+                10_000);
+        bar.setAction(R.string.action_undo, v -> {
+            try {
+                // id 字段重置：让 SQLite 重新分配，避免主键冲突。
+                snapshot.id = 0;
+                OtpRepository.get(this).insert(snapshot);
+                reload();
+            } catch (Exception e) {
+                Toast.makeText(this,
+                        getString(R.string.error_save_failed, e.getMessage()),
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
+        bar.show();
     }
 
     private void showAddSheet() {
@@ -877,8 +912,13 @@ public class MainActivity extends BaseSecureActivity {
                         .setOnCancelListener(
                                 d -> adapter_.notifyItemChanged(pos))
                         .setPositiveButton(R.string.dialog_ok, (d, w) -> {
-                            OtpRepository.get(MainActivity.this).delete(acc.id);
+                            // 软删除：先记住完整 OtpAccount（含 secret 明文）以便撤销，
+                            // 再从数据库中删除。Snackbar 10s 内点击"撤销"则重新插入。
+                            OtpAccount snapshot = acc;
+                            OtpRepository.get(MainActivity.this)
+                                    .delete(snapshot.id);
                             reload();
+                            showUndoDeleteSnackbar(snapshot);
                         })
                         .show();
             }

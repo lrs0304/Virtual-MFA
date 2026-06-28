@@ -78,6 +78,8 @@
 
     <!-- 删除 -->
     <string name="action_delete">删除</string>
+    <string name="action_undo">撤销</string>
+    <string name="delete_done_with_undo">已删除 \"%1$s\"</string>
     <string name="confirm_delete">确认删除该账号？此操作不可撤销。</string>
     <string name="dialog_ok">确定</string>
     <string name="dialog_cancel">取消</string>
