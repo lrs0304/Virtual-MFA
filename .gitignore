@@ -7,6 +7,9 @@
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
+# AI 助手（CodeBuddy/Copilot 等）会话状态，仅本地有意义，不应入库
+/.idea/CopilotChatHistory.xml
+/.idea/CopilotChatTabs.xml
 .DS_Store
 /build
 /captures
