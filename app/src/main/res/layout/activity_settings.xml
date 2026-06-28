@@ -63,7 +63,7 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <com.google.android.material.materialswitch.MaterialSwitch
+                    <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/sw_hide_codes"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -86,7 +86,7 @@
                         android:layout_marginBottom="12dp"
                         android:background="@color/divider" />
 
-                    <com.google.android.material.materialswitch.MaterialSwitch
+                    <com.google.android.material.switchmaterial.SwitchMaterial
                         android:id="@+id/sw_show_next_code"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"

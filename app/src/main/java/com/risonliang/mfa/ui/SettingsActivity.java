@@ -7,7 +7,7 @@ import android.os.Bundle;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import androidx.appcompat.widget.Toolbar;
-import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.risonliang.mfa.R;
 
 /**
@@ -25,8 +25,8 @@ public final class SettingsActivity extends BaseSecureActivity {
 
     private static final int[] kGraceOptions = {0, 15, 30, 60, 300};
 
-    private MaterialSwitch swHideCodes_;
-    private MaterialSwitch swShowNextCode_;
+    private SwitchMaterial swHideCodes_;
+    private SwitchMaterial swShowNextCode_;
     private RadioGroup rgGrace_;
 
     @Override
