@@ -31,6 +31,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -1044,6 +1045,7 @@ public class MainActivity extends BaseSecureActivity {
             /** 隐藏验证码时的默认遮罩字符串（与 6 位对齐）。 */
             private static final String kHiddenMask = "••• •••";
 
+            final ImageView ivIcon_;
             final TextView tvIssuer_;
             final TextView tvAccount_;
             final TextView tvCode_;
@@ -1053,6 +1055,7 @@ public class MainActivity extends BaseSecureActivity {
 
             VH(View v) {
                 super(v);
+                ivIcon_ = v.findViewById(R.id.iv_issuer_icon);
                 tvIssuer_ = v.findViewById(R.id.tv_issuer);
                 tvAccount_ = v.findViewById(R.id.tv_account);
                 tvCode_ = v.findViewById(R.id.tv_code);
@@ -1064,6 +1067,10 @@ public class MainActivity extends BaseSecureActivity {
             void bind(OtpAccount acc, RevealQuery reveal) {
                 tvIssuer_.setText(acc.issuer == null ? "" : acc.issuer);
                 tvAccount_.setText(acc.account == null ? "" : acc.account);
+                if (ivIcon_ != null) {
+                    ivIcon_.setImageDrawable(
+                            new IssuerIconDrawable(acc.issuer, acc.account));
+                }
                 refreshCode(acc, reveal);
             }
 

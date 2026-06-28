@@ -22,6 +22,14 @@
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
+            <ImageView
+                android:id="@+id/iv_issuer_icon"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="12dp"
+                android:contentDescription="@null"
+                android:importantForAccessibility="no" />
+
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
