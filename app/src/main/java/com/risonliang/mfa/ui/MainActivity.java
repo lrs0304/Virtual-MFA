@@ -3,9 +3,6 @@
  */
 package com.risonliang.mfa.ui;
 
-import android.content.ClipData;
-import android.content.ClipboardManager;
-import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -63,6 +60,7 @@ import com.risonliang.mfa.data.GaMigrationDecoder;
 import com.risonliang.mfa.data.OtpRepository;
 import com.risonliang.mfa.data.OtpUriParser;
 import com.risonliang.mfa.model.OtpAccount;
+import com.risonliang.mfa.security.ClipboardCleaner;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -742,13 +740,10 @@ public class MainActivity extends BaseSecureActivity {
             code = OtpGenerator.totp(acc.secret, acc.algorithm,
                     acc.digits, acc.period, now);
         }
-        ClipboardManager cm = (ClipboardManager) getSystemService(
-                Context.CLIPBOARD_SERVICE);
-        if (cm != null) {
-            cm.setPrimaryClip(ClipData.newPlainText("otp", code));
-            Toast.makeText(this, R.string.copied,
-                    Toast.LENGTH_SHORT).show();
-        }
+        ClipboardCleaner.get(this).copyOtp("otp", code,
+                ClipboardCleaner.kDefaultClearDelayMs);
+        Toast.makeText(this, R.string.copied_with_clear,
+                Toast.LENGTH_SHORT).show();
     }
 
     /** 长按改为编辑：仅允许修改 issuer / account，不动 secret。 */
