@@ -57,6 +57,13 @@
 | **T6** | 删除二次确认 + 撤销 Snackbar（10s 内可还原） | Aaron | 高 | 低 |
 | **T7** | 长按 issuer 字母圆角图标（本地生成、零资源） | Aaron | 中 | 低 |
 
+### v0.2 增量（已落地）
+
+| # | 子任务 | 责任 | 收益 | 风险 |
+|---|---|---|---|---|
+| **T8** | 长按拖拽排序（搜索过滤态自动禁用） | Aaron | 中 | 低 |
+| **S1** | 设置 Activity（集中承载 T3/T4/T5 偏好） | Aaron | 高 | 低 |
+
 明确 **Out-of-Scope**：
 - ❌ 任何**云同步**（违反「零联网权限」）
 - ❌ 引入图片资源包（违反 ≤8MB；首字母色块改为代码绘制）
@@ -90,6 +97,10 @@
 - TC-T5-02：默认值=0，未升级偏好的老用户行为与原版一致
 - TC-T6-01：滑动删除后弹 Snackbar，点撤销后账号恢复且 secret 一致
 - TC-T7-01：issuer 为空时图标显示账号首字母；非 ASCII 字符不崩溃
+- TC-T8-01：长按账号上下拖拽改变顺序，松手后顺序持久化；杀进程重开仍保留
+- TC-T8-02：搜索框非空时长按不应触发拖拽（避免基于过滤态写回乱序）
+- TC-S1-01：进入「设置」页修改隐藏码 / 下一码 / 宽限期；返回主列表立即生效
+- TC-S1-02：设置页继承 BaseSecureActivity，release 包内不能截屏；从后台回前台触发解锁路由
 
 ---
 
@@ -98,16 +109,19 @@
 每完成一个子任务即 commit，单分支线性推进：
 
 ```
-M1  PM 输出本调研文档                         [docs] ← 当前
-M2  T1 搜索框                                  [feat]
-M3  T2 复制 + 剪贴板自清                       [feat]
-M4  T3 隐藏验证码                              [feat]
-M5  T4 下一码预览                              [feat]
-M6  T5 自动锁定宽限期                          [feat]
-M7  T6 撤销删除                                [feat]
-M8  T7 字母色块图标                            [feat]
-M9  Tina 单元/仪器测试补强                     [test]
-M10 Sam 安全 self-review checklist 落档        [docs]
+M1  PM 输出本调研文档                         [docs] ✅
+M2  T1 搜索框                                  [feat] ✅
+M3  T2 复制 + 剪贴板自清                       [feat] ✅
+M4  T3 隐藏验证码                              [feat] ✅
+M5  T4 下一码预览                              [feat] ✅
+M6  T5 自动锁定宽限期                          [feat] ✅
+M7  T6 撤销删除                                [feat] ✅
+M8  T7 字母色块图标                            [feat] ✅
+M9  Tina 单元/仪器测试补强                     [test] ✅
+M10 Sam 安全 self-review checklist 落档        [docs] ✅
+M11 修复 SearchFilterTest needle 大小写归一化  [test] ✅
+M12 S1 简洁的「设置」Activity                  [feat] ✅
+M13 T8 长按拖拽排序 + sortOrder 单事务持久化   [feat] ✅
 ```
 
 — Penny / Aaron / Sam / Tina · 2026

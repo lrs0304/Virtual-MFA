@@ -1,7 +1,8 @@
 # 安全自审 Checklist · feat/ux-enhancement
 
-> Sam（安全工程师）针对 `feat/ux-enhancement` 分支 7 个子任务的逐项核对。
+> Sam（安全工程师）针对 `feat/ux-enhancement` 分支子任务的逐项核对。
 > 与 [CLAUDE.md §4 安全红线](../CLAUDE.md) 11 条逐条比对。
+> 覆盖范围：v0.1（T1–T7）+ v0.2（T8 / S1 / SearchFilterTest 修复）。
 
 ## 1. 红线核对
 
@@ -62,6 +63,24 @@
 - 不联网获取真实品牌 LOGO
 - 风险：**极低**
 
+### T8 长按拖拽排序
+- 仅调整 `sort_order` 列（int），绝不触叐 `secret_enc`、`algorithm`、`counter` 等敏感列
+- 持久化走**单事务**批量 UPDATE，要么全部成功要么全部回滚，不会出现部分写入的中间态
+- **搜索过滤态下禁用拖拽**：避免用户基于子集拖动后写回造成未可见账号的顺序被覆盖
+- 持久化代码跳出 UI 线程（`bgExecutor_`），避免主线程 ANR
+- 风险：**极低**
+
+### S1 设置 Activity
+- 继承 `BaseSecureActivity`，FLAG_SECURE 与解锁路由与主页一致；不存在“在设置页能截屏、主页不能”不一致
+- 仅读写 `UiPreferences`、不暴露 PIN / 生物识别 / 备份入口（这些需要二次验证，独立流程维护）
+- 设置项本身不含可逆秘密（都是布尔 / 枚举 int），走普通 SP 符合原有架构原则
+- 风险：**极低**
+
+### 修复 SearchFilterTest needle 大小写归一化
+- 仅修改 `app/src/test/`，不改变产品代码语义
+- MainActivity.applyFilter 依然在入口处 `currentQuery_.toLowerCase(Locale.ROOT)`，运行时行为与修复前一致
+- 风险：**无**
+
 ## 3. 验收前回归矩阵（建议在物理机走一遍）
 
 - [ ] 扫码添加账号
@@ -76,6 +95,9 @@
 - [ ] **新**：宽限期默认 0 → 后台返回需要解锁；改为 30s 后 20s 内返回不解锁、31s 后需要解锁
 - [ ] **新**：滑动删除 → Snackbar 撤销，账号完整恢复
 - [ ] **新**：列表项左侧首字母色块图标，相同 issuer 颜色稳定
+- [ ] **新**：长按账号拖拽排序，松手后顺序持久化、杀进程重开仍保留
+- [ ] **新**：搜索框非空时长按不触发拖拽
+- [ ] **新**：「设置」页可调隐藏码 / 下一码 / 宽限期，返回主列表立即生效
 - [ ] PIN 设置 / 修改 / 关闭 / 解锁 / 生物识别快捷解锁全部正常
 - [ ] 加密备份 .2fa 导出 + 导入
 - [ ] 明文 CSV 导出（含警告对话框）+ 导入
@@ -83,7 +105,9 @@
 
 ## 4. 包体守门
 
-> 本次未引入新依赖；仅新增 4 个 Java 类、3 张 layout/drawable 修改、若干 string。
-> 预估 release APK 体积变化：**+5 ~ +10 KB**（新增字符串与 dex），仍在 7.3 MB 基线内。
+> v0.1：未引入新依赖；仅新增 4 个 Java 类、3 张 layout/drawable 修改、若干 string。
+> v0.2：只新增 1 个 Java 类（SettingsActivity）+ 1 张 layout + 11 条 string，未引入任何依赖。
+> 预估 release APK 体积变化：**+15 ~ +25 KB**，仍在 7.3 MB 基线内。
+> 实测数据请参考本轮 `feat: release APK size verification` 提交中的记录。
 
 — Sam · 2026
