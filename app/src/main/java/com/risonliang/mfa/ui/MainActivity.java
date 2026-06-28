@@ -597,8 +597,9 @@ public class MainActivity extends BaseSecureActivity {
         if (acc == null) {
             Log.w(kLogTag, "OtpUriParser.parse returned null, prefix="
                     + safeSchemePrefix(content));
-            Toast.makeText(this, R.string.error_qr_invalid,
-                    Toast.LENGTH_SHORT).show();
+            // 不再仅 Toast 草草了事：把原文塞进预览页让用户看到全文 + 一键复制。
+            // 这是"识别到了二维码但内容不是 MFA 规范"的兜底入口。
+            startActivity(QrContentPreviewActivity.newIntent(this, content));
             return;
         }
         try {

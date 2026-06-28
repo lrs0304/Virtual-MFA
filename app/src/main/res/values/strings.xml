@@ -46,6 +46,32 @@
     <string name="decoding_image">正在识别图片中的二维码…</string>
     <string name="permission_camera_denied">需要相机权限才能扫码</string>
 
+    <!-- 二维码失败处理：内容预览页 -->
+    <string name="title_qr_content_preview">二维码内容（添加失败）</string>
+    <string name="qr_content_preview_hint">该二维码内容不是有效的 MFA 配置（otpauth），无法添加为账号。\n下方为解码出的完整原文（共 %1$d 个字符），可复制后用其他方式查证。</string>
+    <string name="action_copy_content">复制内容</string>
+    <string name="action_close">关闭</string>
+    <string name="copied_to_clipboard">已复制到剪贴板</string>
+    <string name="copy_failed">复制失败</string>
+
+    <!-- 二维码失败处理：图片编辑页 -->
+    <string name="title_image_edit">重新识别</string>
+    <string name="image_edit_hint_zoom">缩放模式：双指缩放调整二维码位置，对准后点击「重新识别」</string>
+    <string name="image_edit_hint_adjust">调整模式：拖动曲线/滑块去除噪点，调好后点击「重新识别」</string>
+    <string name="action_retry_decode">重新识别</string>
+    <string name="action_mode_zoom">缩放</string>
+    <string name="action_mode_adjust">调整</string>
+    <string name="action_reset_adjust">重置</string>
+    <string name="action_invert">反色</string>
+    <string name="action_otsu">自动二值化</string>
+    <string name="label_contrast">对比度</string>
+    <string name="label_threshold">阈值</string>
+    <string name="label_brightness_r">R 亮度</string>
+    <string name="label_brightness_g">G 亮度</string>
+    <string name="label_brightness_b">B 亮度</string>
+    <string name="msg_decoding">识别中…</string>
+    <string name="msg_decode_still_fail">仍未识别到二维码，请继续调整图像</string>
+
     <!-- Google Authenticator 迁移 -->
     <string name="error_ga_migration_empty">未能从迁移二维码中解析出任何账号</string>
     <string name="ga_migration_success">成功导入 %1$d 个账号</string>
