@@ -87,6 +87,8 @@
     <!-- 编辑 -->
     <string name="title_edit_account">编辑账号</string>
     <string name="action_edit">编辑</string>
+    <string name="action_pin">置顶常用</string>
+    <string name="action_unpin">取消置顶</string>
 
     <!-- 算法 -->
     <string-array name="algo_array">

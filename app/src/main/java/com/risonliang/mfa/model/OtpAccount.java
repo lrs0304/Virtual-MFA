@@ -27,6 +27,11 @@ public class OtpAccount {
     public long counter;        // HOTP 计数器（仅 HOTP 使用）
     public long createdAt;
     public int sortOrder;
+    /**
+     * 是否被用户收藏置顶。收藏的账号在主列表内置顶，便于在大量账号中
+     * 快速定位常用项；与 secret 加密无任何耦合，仅影响列表排序与图标渲染。
+     */
+    public boolean favorite;
 
     public OtpAccount() {
         this.type = TYPE_TOTP;

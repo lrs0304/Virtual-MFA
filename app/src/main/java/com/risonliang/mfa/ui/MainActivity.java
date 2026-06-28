@@ -820,8 +820,63 @@ public class MainActivity extends BaseSecureActivity {
         return false;
     }
 
-    /** 长按改为编辑：仅允许修改 issuer / account，不动 secret。 */
+    /**
+     * 长按弹出条目操作菜单：编辑 / 置顶（或取消置顶）/ 删除。
+     * 删除入口与左滑删除走同一个 confirm + Snackbar 撤销路径，避免不一致。
+     */
     private void onItemLong(OtpAccount acc) {
+        CharSequence[] items = new CharSequence[]{
+                getString(R.string.action_edit),
+                getString(acc.favorite
+                        ? R.string.action_unpin
+                        : R.string.action_pin),
+                getString(R.string.action_delete)
+        };
+        new AlertDialog.Builder(this)
+                .setTitle(acc.displayLabel())
+                .setItems(items, (d, which) -> {
+                    if (which == 0) {
+                        showEditDialog(acc);
+                    } else if (which == 1) {
+                        toggleFavorite(acc);
+                    } else if (which == 2) {
+                        confirmDelete(acc);
+                    }
+                })
+                .setNegativeButton(R.string.dialog_cancel, null)
+                .show();
+    }
+
+    /** 切换收藏置顶状态：仅写一列 + 重新加载列表，不影响 secret 路径。 */
+    private void toggleFavorite(OtpAccount acc) {
+        boolean target = !acc.favorite;
+        try {
+            OtpRepository.get(this).setFavorite(acc.id, target);
+            acc.favorite = target;
+            reload();
+        } catch (Exception e) {
+            Toast.makeText(this,
+                    getString(R.string.error_save_failed, e.getMessage()),
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /** 提取出来的"二次确认 + 软删除 + Snackbar 撤销"流程，长按和滑动共用。 */
+    private void confirmDelete(OtpAccount acc) {
+        new AlertDialog.Builder(this)
+                .setTitle(acc.displayLabel())
+                .setMessage(R.string.confirm_delete)
+                .setNegativeButton(R.string.dialog_cancel, null)
+                .setPositiveButton(R.string.dialog_ok, (d, w) -> {
+                    OtpRepository.get(this).delete(acc.id);
+                    reload();
+                    showUndoDeleteSnackbar(acc);
+                })
+                .show();
+    }
+
+    /** 长按改为编辑：仅允许修改 issuer / account，不动 secret。 */
+    private void showEditDialog(OtpAccount acc) {
         View dialogView = LayoutInflater.from(this)
                 .inflate(R.layout.dialog_edit_account, null, false);
         final EditText etIssuer = dialogView.findViewById(R.id.et_edit_issuer);
@@ -929,6 +984,12 @@ public class MainActivity extends BaseSecureActivity {
                 int to = target.getBindingAdapterPosition();
                 if (from < 0 || to < 0
                         || from >= data_.size() || to >= data_.size()) {
+                    return false;
+                }
+                // 收藏分区隔离：仅允许在同一 favorite 状态内拖动，避免出现
+                // "把一个非收藏拖到收藏区然后顺序错乱"的视觉/语义不一致。
+                // 用户想跨区移动应通过长按菜单"取消置顶"先改变分区。
+                if (data_.get(from).favorite != data_.get(to).favorite) {
                     return false;
                 }
                 // 同步调整 data_ 与 allData_（两者在未过滤时为同顺序，但不是同一个
@@ -1150,7 +1211,13 @@ public class MainActivity extends BaseSecureActivity {
             }
 
             void bind(OtpAccount acc, RevealQuery reveal) {
-                tvIssuer_.setText(acc.issuer == null ? "" : acc.issuer);
+                String issuerText = acc.issuer == null ? "" : acc.issuer;
+                // T9：收藏置顶在 issuer 前加 ★，零新增资源；不影响搜索匹配语义，
+                // 因为 matches() 走的是 acc.issuer 字段而非这里的渲染文本。
+                if (acc.favorite) {
+                    issuerText = "★ " + issuerText;
+                }
+                tvIssuer_.setText(issuerText);
                 tvAccount_.setText(acc.account == null ? "" : acc.account);
                 if (ivIcon_ != null) {
                     ivIcon_.setImageDrawable(

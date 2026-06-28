@@ -24,7 +24,7 @@ import java.util.List;
 public final class OtpRepository {
 
     private static final String DB_NAME = "mfa.db";
-    private static final int DB_VERSION = 2;
+    private static final int DB_VERSION = 3;
     private static final String TABLE = "otp_account";
 
     private static final String COL_ID = "id";
@@ -38,6 +38,7 @@ public final class OtpRepository {
     private static final String COL_SORT = "sort_order";
     private static final String COL_TYPE = "type";
     private static final String COL_COUNTER = "counter";
+    private static final String COL_FAVORITE = "favorite";
 
     private static volatile OtpRepository sInstance;
     private final DbHelper helper_;
@@ -122,12 +123,27 @@ public final class OtpRepository {
         return next;
     }
 
+    /**
+     * 设置账号的收藏属性。仅调整排序与字段标记，不触叐 secret 加密路径。
+     * 用于“置顶常用账号”；query 顺序为 favorite DESC, sort_order ASC, id ASC，
+     * 所以在同一分区内原有拖拽排序仍然生效。
+     */
+    public int setFavorite(long id, boolean favorite) {
+        android.content.ContentValues cv = new android.content.ContentValues();
+        cv.put(COL_FAVORITE, favorite ? 1 : 0);
+        SQLiteDatabase db = helper_.getWritableDatabase();
+        return db.update(TABLE, cv, COL_ID + "=?",
+                new String[]{String.valueOf(id)});
+    }
+
     /** 列出所有账号（已解密）。 */
     public List<OtpAccount> listAll() throws Exception {
         List<OtpAccount> list = new ArrayList<>();
         SQLiteDatabase db = helper_.getReadableDatabase();
+        // 收藏置顶 → 同分区内按 sort_order → 同顺序时按 id 稳定排序。
         try (Cursor c = db.query(TABLE, null, null, null, null, null,
-                COL_SORT + " ASC, " + COL_ID + " ASC")) {
+                COL_FAVORITE + " DESC, "
+                        + COL_SORT + " ASC, " + COL_ID + " ASC")) {
             while (c.moveToNext()) {
                 list.add(fromCursor(c));
             }
@@ -172,6 +188,7 @@ public final class OtpRepository {
         cv.put(COL_CREATED,
                 acc.createdAt == 0 ? System.currentTimeMillis() : acc.createdAt);
         cv.put(COL_SORT, acc.sortOrder);
+        cv.put(COL_FAVORITE, acc.favorite ? 1 : 0);
         return cv;
     }
 
@@ -195,6 +212,9 @@ public final class OtpRepository {
                 ? c.getLong(counterIdx) : 0;
         a.createdAt = c.getLong(c.getColumnIndexOrThrow(COL_CREATED));
         a.sortOrder = c.getInt(c.getColumnIndexOrThrow(COL_SORT));
+        int favIdx = c.getColumnIndex(COL_FAVORITE);
+        a.favorite = (favIdx >= 0 && !c.isNull(favIdx))
+                && c.getInt(favIdx) != 0;
         return a;
     }
 
@@ -216,7 +236,8 @@ public final class OtpRepository {
                     + COL_CREATED + " INTEGER, "
                     + COL_TYPE + " TEXT DEFAULT 'totp', "
                     + COL_COUNTER + " INTEGER DEFAULT 0, "
-                    + COL_SORT + " INTEGER DEFAULT 0)");
+                    + COL_SORT + " INTEGER DEFAULT 0, "
+                    + COL_FAVORITE + " INTEGER DEFAULT 0)");
         }
 
         @Override
@@ -226,6 +247,12 @@ public final class OtpRepository {
                         + " ADD COLUMN " + COL_TYPE + " TEXT DEFAULT 'totp'");
                 db.execSQL("ALTER TABLE " + TABLE
                         + " ADD COLUMN " + COL_COUNTER + " INTEGER DEFAULT 0");
+            }
+            if (oldVersion < 3) {
+                // v3: 新增 favorite 列。所有现有账号默认未置顶，行为与老版本完全一致。
+                db.execSQL("ALTER TABLE " + TABLE
+                        + " ADD COLUMN " + COL_FAVORITE
+                        + " INTEGER DEFAULT 0");
             }
         }
     }
