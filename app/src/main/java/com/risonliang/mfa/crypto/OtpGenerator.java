@@ -30,8 +30,7 @@ public final class OtpGenerator {
      * @param timeMs    当前毫秒时间戳
      * @return 验证码字符串（左侧补零）
      */
-    public static String totp(String secret, String algorithm, int digits,
-                              int period, long timeMs) {
+    public static String totp(String secret, String algorithm, int digits, int period, long timeMs) {
         long counter = (timeMs / 1000L) / period;
         byte[] key = Base32.decode(secret);
         return hotpInternal(key, counter, algorithm, digits);
@@ -46,8 +45,7 @@ public final class OtpGenerator {
      * @param counter   计数器值
      * @return 验证码字符串（左侧补零）
      */
-    public static String hotp(String secret, String algorithm, int digits,
-                              long counter) {
+    public static String hotp(String secret, String algorithm, int digits, long counter) {
         byte[] key = Base32.decode(secret);
         return hotpInternal(key, counter, algorithm, digits);
     }
@@ -63,8 +61,7 @@ public final class OtpGenerator {
         return (timeMs / 1000L) / period;
     }
 
-    private static String hotpInternal(byte[] key, long counter,
-                                        String algorithm, int digits) {
+    private static String hotpInternal(byte[] key, long counter, String algorithm, int digits) {
         try {
             byte[] data = ByteBuffer.allocate(8).putLong(counter).array();
             String macAlgo = mapMacAlgo(algorithm);

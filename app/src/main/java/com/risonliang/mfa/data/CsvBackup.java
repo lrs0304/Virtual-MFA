@@ -124,8 +124,7 @@ public final class CsvBackup {
         return m;
     }
 
-    private static String cell(List<String> row, Map<String, Integer> idx,
-                               String key) {
+    private static String cell(List<String> row, Map<String, Integer> idx, String key) {
         Integer i = idx.get(key);
         if (i == null || i < 0 || i >= row.size()) {
             return null;
