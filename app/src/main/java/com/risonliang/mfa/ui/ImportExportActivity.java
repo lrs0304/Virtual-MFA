@@ -52,8 +52,7 @@ public class ImportExportActivity extends BaseSecureActivity {
         toolbar.setNavigationOnClickListener(v -> finish());
 
         // 为内容区应用左右 + 底部安全距离。
-        InsetsUtils.applySidesAndBottomAsPadding(
-                findViewById(R.id.content_import_export));
+        InsetsUtils.applySidesAndBottomAsPadding(findViewById(R.id.content_import_export));
 
         MaterialButton btnExport = findViewById(R.id.btn_export);
         MaterialButton btnImport = findViewById(R.id.btn_import);
@@ -61,11 +60,9 @@ public class ImportExportActivity extends BaseSecureActivity {
         exportLauncher_ = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
-                    if (result.getResultCode() == Activity.RESULT_OK
-                            && result.getData() != null) {
+                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
                         Uri uri = result.getData().getData();
-                        if (pendingExportFormat_
-                                == ExportFormat.ENCRYPTED_2FA) {
+                        if (pendingExportFormat_  == ExportFormat.ENCRYPTED_2FA) {
                             promptPasswordForExport(uri);
                         } else {
                             doExportCsv(uri);
@@ -75,8 +72,7 @@ public class ImportExportActivity extends BaseSecureActivity {
         importLauncher_ = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
-                    if (result.getResultCode() == Activity.RESULT_OK
-                            && result.getData() != null) {
+                    if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
                         handleImport(result.getData().getData());
                     }
                 });
