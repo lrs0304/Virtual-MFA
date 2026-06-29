@@ -30,16 +30,12 @@
 - ⌨️ **手动添加**（`AddManualActivity`）
 - 📦 **Google Authenticator 迁移二维码**（`otpauth-migration://offline?data=...`，手写 protobuf 解码，无第三方依赖）
 
-### 相册识别失败路径（v1.1 新增）
-
-二维码识别不再"一句 Toast 完事"：
+### 识别失败兜底机制（v1.1 新增）
 
 | 失败类型 | 行为 |
 |---|---|
 | ML Kit 没识别到二维码 | 跳转 `ImageEditActivity`，提供「缩放模式」+「调整模式」（对比度 / 阈值 / R/G/B 亮度 + 反色 + Otsu 自动二值化），「重新识别」按钮重试 |
 | 识别到二维码但内容不是 `otpauth` / GA 迁移 | 跳转 `QrContentPreviewActivity`，红色提示条 + 等宽原文 + 一键复制 |
-
-`MainActivity.decodeQrInBackground` 在主路径上把 `inSampleSize` 阈值设为 2048（早期版本曾是 4096），实测在华为高分屏（2400-3060 边长）截图上识别率显著提升。
 
 ### 列表与管理
 
