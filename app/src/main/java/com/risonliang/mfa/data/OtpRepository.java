@@ -69,15 +69,13 @@ public final class OtpRepository {
     public int update(OtpAccount acc) throws Exception {
         ContentValues cv = toCv(acc);
         SQLiteDatabase db = helper_.getWritableDatabase();
-        return db.update(TABLE, cv, COL_ID + "=?",
-                new String[]{String.valueOf(acc.id)});
+        return db.update(TABLE, cv, COL_ID + "=?", new String[]{String.valueOf(acc.id)});
     }
 
     /** 删除账号。 */
     public int delete(long id) {
         SQLiteDatabase db = helper_.getWritableDatabase();
-        return db.delete(TABLE, COL_ID + "=?",
-                new String[]{String.valueOf(id)});
+        return db.delete(TABLE, COL_ID + "=?", new String[]{String.valueOf(id)});
     }
 
     /**
@@ -118,8 +116,7 @@ public final class OtpRepository {
         android.content.ContentValues cv = new android.content.ContentValues();
         cv.put(COL_COUNTER, next);
         SQLiteDatabase db = helper_.getWritableDatabase();
-        db.update(TABLE, cv, COL_ID + "=?",
-                new String[]{String.valueOf(id)});
+        db.update(TABLE, cv, COL_ID + "=?", new String[]{String.valueOf(id)});
         return next;
     }
 
@@ -132,8 +129,7 @@ public final class OtpRepository {
         android.content.ContentValues cv = new android.content.ContentValues();
         cv.put(COL_FAVORITE, favorite ? 1 : 0);
         SQLiteDatabase db = helper_.getWritableDatabase();
-        return db.update(TABLE, cv, COL_ID + "=?",
-                new String[]{String.valueOf(id)});
+        return db.update(TABLE, cv, COL_ID + "=?", new String[]{String.valueOf(id)});
     }
 
     /** 列出所有账号（已解密）。 */

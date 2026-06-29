@@ -120,8 +120,7 @@ public final class CryptoManager {
      * @return 形如 {@code [12B IV][密文 || 16B Tag]} 的字节流
      * @throws GeneralSecurityException 派生或加密失败时抛出
      */
-    public static byte[] encryptWithPassword(byte[] plain, char[] password,
-                                             byte[] salt)
+    public static byte[] encryptWithPassword(byte[] plain, char[] password, byte[] salt)
             throws GeneralSecurityException {
         if (plain == null) {
             throw new IllegalArgumentException("plain == null");
@@ -140,8 +139,7 @@ public final class CryptoManager {
      * @throws GeneralSecurityException 派生失败、Tag 校验失败时抛出
      * @throws IllegalArgumentException payload 非法（null 或长度不足）
      */
-    public static byte[] decryptWithPassword(byte[] payload, char[] password,
-                                             byte[] salt)
+    public static byte[] decryptWithPassword(byte[] payload, char[] password, byte[] salt)
             throws GeneralSecurityException {
         ensureValidPayload(payload);
         SecretKey key = deriveKey(password, salt);
@@ -194,8 +192,7 @@ public final class CryptoManager {
         byte[] iv = new byte[IV_LENGTH];
         SECURE_RANDOM.nextBytes(iv);
         Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-        cipher.init(Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(TAG_LENGTH_BIT, iv));
+        cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(TAG_LENGTH_BIT, iv));
         byte[] cipherText = cipher.doFinal(plain);
         return concatIvAndCipher(iv, cipherText);
     }
@@ -205,8 +202,7 @@ public final class CryptoManager {
         byte[] iv = new byte[IV_LENGTH];
         System.arraycopy(payload, 0, iv, 0, IV_LENGTH);
         Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-        cipher.init(Cipher.DECRYPT_MODE, key,
-                new GCMParameterSpec(TAG_LENGTH_BIT, iv));
+        cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(TAG_LENGTH_BIT, iv));
         return cipher.doFinal(payload, IV_LENGTH, payload.length - IV_LENGTH);
     }
 

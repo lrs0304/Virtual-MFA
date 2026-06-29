@@ -104,6 +104,18 @@
             android:exported="false"
             android:label="@string/title_settings"
             android:parentActivityName=".ui.MainActivity" />
+
+        <activity
+            android:name=".ui.QrContentPreviewActivity"
+            android:exported="false"
+            android:label="@string/title_qr_content_preview"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <activity
+            android:name=".ui.ImageEditActivity"
+            android:exported="false"
+            android:label="@string/title_image_edit"
+            android:parentActivityName=".ui.MainActivity" />
     </application>
 
 </manifest>

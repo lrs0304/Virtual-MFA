@@ -16,3 +16,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# 实验/调试用 release APK 产物（带时间戳，本地分发用，不入库）
+/MFA-*.apk

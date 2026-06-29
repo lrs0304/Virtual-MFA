@@ -97,10 +97,8 @@ public final class CsvBackup {
             String algo = cell(row, idx, "algorithm");
             a.algorithm = (algo == null || algo.isEmpty())
                     ? OtpAccount.DEFAULT_ALGO : algo.toUpperCase();
-            a.digits = parseIntOr(cell(row, idx, "digits"),
-                    OtpAccount.DEFAULT_DIGITS);
-            a.period = parseIntOr(cell(row, idx, "period"),
-                    OtpAccount.DEFAULT_PERIOD);
+            a.digits = parseIntOr(cell(row, idx, "digits"), OtpAccount.DEFAULT_DIGITS);
+            a.period = parseIntOr(cell(row, idx, "period"), OtpAccount.DEFAULT_PERIOD);
             a.counter = parseLongOr(cell(row, idx, "counter"), 0);
             result.add(a);
         }
@@ -124,8 +122,7 @@ public final class CsvBackup {
         return m;
     }
 
-    private static String cell(List<String> row, Map<String, Integer> idx,
-                               String key) {
+    private static String cell(List<String> row, Map<String, Integer> idx, String key) {
         Integer i = idx.get(key);
         if (i == null || i < 0 || i >= row.size()) {
             return null;

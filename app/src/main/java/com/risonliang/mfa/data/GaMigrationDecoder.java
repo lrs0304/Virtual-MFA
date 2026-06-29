@@ -73,8 +73,7 @@ public final class GaMigrationDecoder {
             } catch (IllegalArgumentException badStd) {
                 Log.d(kLogTag,
                         "GaMigrationDecoder: standard Base64 failed, retry URL_SAFE");
-                payload = Base64.decode(dataParam,
-                        Base64.URL_SAFE | Base64.NO_PADDING);
+                payload = Base64.decode(dataParam, Base64.URL_SAFE | Base64.NO_PADDING);
             }
             Log.d(kLogTag, "GaMigrationDecoder: dataLen=" + dataParam.length()
                     + ", payloadLen=" + (payload == null ? 0 : payload.length));

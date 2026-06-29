@@ -3,36 +3,18 @@
  */
 package com.risonliang.mfa.ui;
 
-import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.PorterDuff;
-import android.graphics.Rect;
-import android.graphics.RectF;
-import android.graphics.Typeface;
-import android.graphics.drawable.Drawable;
-import android.graphics.drawable.LayerDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
-import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.Log;
-import android.util.TypedValue;
-import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.ImageButton;
-import android.widget.ImageView;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
@@ -44,19 +26,6 @@ import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
-import com.google.android.material.snackbar.Snackbar;
-import com.google.mlkit.vision.barcode.BarcodeScanner;
-import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
-import com.google.mlkit.vision.barcode.BarcodeScanning;
-import com.google.mlkit.vision.barcode.common.Barcode;
-import com.google.mlkit.vision.common.InputImage;
-import com.google.zxing.BinaryBitmap;
-import com.google.zxing.DecodeHintType;
-import com.google.zxing.RGBLuminanceSource;
-import com.google.zxing.Result;
-import com.google.zxing.common.GlobalHistogramBinarizer;
-import com.google.zxing.common.HybridBinarizer;
-import com.google.zxing.qrcode.QRCodeReader;
 import com.risonliang.mfa.R;
 import com.risonliang.mfa.crypto.OtpGenerator;
 import com.risonliang.mfa.data.GaMigrationDecoder;
@@ -64,12 +33,9 @@ import com.risonliang.mfa.data.OtpRepository;
 import com.risonliang.mfa.data.OtpUriParser;
 import com.risonliang.mfa.model.OtpAccount;
 import com.risonliang.mfa.security.ClipboardCleaner;
-import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -82,6 +48,8 @@ public class MainActivity extends BaseSecureActivity {
     private EditText etSearch_;
     private ImageButton btnSearchClear_;
     private OtpAdapter adapter_;
+    /** 编辑/收藏/删除/撤销 等条目级交互的统一入口，避免在 Activity 内堆对话框代码。 */
+    private AccountActions accountActions_;
     /** 适配器实际渲染的列表（受搜索条件过滤）。 */
     private final List<OtpAccount> data_ = new ArrayList<>();
     /** 全量数据缓存：搜索过滤的输入源，避免重复读 DB。 */
@@ -97,6 +65,8 @@ public class MainActivity extends BaseSecureActivity {
     private final Handler tickHandler_ = new Handler(Looper.getMainLooper());
     private ActivityResultLauncher<Intent> scanLauncher_;
     private ActivityResultLauncher<String> albumLauncher_;
+    /** 图片编辑页（ImageEditActivity）回调：用户调整后识别成功的内容。 */
+    private ActivityResultLauncher<Intent> imageEditLauncher_;
     private final ExecutorService bgExecutor_ =
             Executors.newSingleThreadExecutor();
 
@@ -131,7 +101,10 @@ public class MainActivity extends BaseSecureActivity {
         etSearch_ = findViewById(R.id.et_search);
         btnSearchClear_ = findViewById(R.id.btn_search_clear);
         rvAccounts_.setLayoutManager(new LinearLayoutManager(this));
-        adapter_ = new OtpAdapter(data_, this::onItemClick, this::onItemLong,
+        accountActions_ = new AccountActions(
+                this, findViewById(R.id.root_main), this::reload);
+        adapter_ = new OtpAdapter(data_, this::onItemClick,
+                accountActions_::showLongPressMenu,
                 this::isCodeRevealed);
         rvAccounts_.setAdapter(adapter_);
         attachSwipeToDelete();
@@ -161,6 +134,21 @@ public class MainActivity extends BaseSecureActivity {
                 uri -> {
                     if (uri != null) {
                         decodeQrFromImage(uri);
+                    }
+                });
+
+        // 图片编辑页回调：用户在 ImageEditActivity 内调整后识别成功，
+        // 内容通过 EXTRA_RESULT 回传，按和扫码相同的路径处理。
+        imageEditLauncher_ = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK
+                            && result.getData() != null) {
+                        String content = result.getData().getStringExtra(
+                                ImageEditActivity.EXTRA_RESULT);
+                        if (content != null && !content.isEmpty()) {
+                            handleScanResult(content);
+                        }
                     }
                 });
     }
@@ -340,40 +328,6 @@ public class MainActivity extends BaseSecureActivity {
         return false;
     }
 
-    /**
-     * 展示删除撤销 Snackbar：10 秒内点击"撤销"则把账号重新插入回库。
-     *
-     * 注意：账号 id 在新插入时会由 SQLite 重新分配，sortOrder 会回到当前末尾，
-     * 与原条目的相对顺序可能略有差异；不持久化"原 sortOrder"是为了保持
-     * Repository 层结构尽可能简单，且对用户体验没有可感知影响。
-     */
-    private void showUndoDeleteSnackbar(OtpAccount snapshot) {
-        if (snapshot == null) {
-            return;
-        }
-        View root = findViewById(R.id.root_main);
-        if (root == null) {
-            return;
-        }
-        String title = snapshot.displayLabel();
-        Snackbar bar = Snackbar.make(root,
-                getString(R.string.delete_done_with_undo, title),
-                10_000);
-        bar.setAction(R.string.action_undo, v -> {
-            try {
-                // id 字段重置：让 SQLite 重新分配，避免主键冲突。
-                snapshot.id = 0;
-                OtpRepository.get(this).insert(snapshot);
-                reload();
-            } catch (Exception e) {
-                Toast.makeText(this,
-                        getString(R.string.error_save_failed, e.getMessage()),
-                        Toast.LENGTH_SHORT).show();
-            }
-        });
-        bar.show();
-    }
-
     private void showAddSheet() {
         new AlertDialog.Builder(this)
                 .setTitle(R.string.title_add_account)
@@ -400,310 +354,36 @@ public class MainActivity extends BaseSecureActivity {
 
     /**
      * 从相册选取的图片中解码二维码。
-     * 在后台线程执行图片解码和二维码识别，避免阻塞 UI 线程导致 ANR。
-     * 同时对大图片进行降采样，防止 OOM。
+     * 解码逻辑全部下沉到 {@link AlbumQrDecoder}，本方法仅做 UI 调度：
+     *  - SUCCESS 走 {@link #handleScanResult(String)}；
+     *  - NOT_FOUND 进入 {@link ImageEditActivity} 让用户手动调整后重识；
+     *  - READ_FAILED 显示 Toast。
      */
     private void decodeQrFromImage(Uri imageUri) {
         Toast.makeText(this, R.string.decoding_image,
                 Toast.LENGTH_SHORT).show();
         bgExecutor_.execute(() -> {
-            String decoded = decodeQrInBackground(imageUri);
+            AlbumQrDecoder.Result r =
+                    AlbumQrDecoder.decode(getApplicationContext(), imageUri);
             runOnUiThread(() -> {
-                if (decoded == null) {
-                    // 错误已在后台方法中标记，此处不重复提示
-                } else if (decoded.isEmpty()) {
-                    Toast.makeText(this, R.string.error_qr_not_found,
-                            Toast.LENGTH_SHORT).show();
-                } else {
-                    handleScanResult(decoded);
+                switch (r.status) {
+                    case SUCCESS:
+                        handleScanResult(r.content);
+                        break;
+                    case NOT_FOUND:
+                        Toast.makeText(this, R.string.error_qr_not_found,
+                                Toast.LENGTH_SHORT).show();
+                        imageEditLauncher_.launch(
+                                ImageEditActivity.newIntent(this, imageUri));
+                        break;
+                    case READ_FAILED:
+                    default:
+                        Toast.makeText(this, R.string.error_image_read,
+                                Toast.LENGTH_SHORT).show();
+                        break;
                 }
             });
         });
-    }
-
-    /**
-     * 后台线程：读取图片、降采样、解码二维码。
-     * @return 解码内容；空字符串表示未找到二维码；null 表示读取失败（已 Toast）。
-     */
-    private String decodeQrInBackground(Uri imageUri) {
-        try {
-            // 第一遍：仅读取尺寸，不加载像素
-            BitmapFactory.Options opts = new BitmapFactory.Options();
-            opts.inJustDecodeBounds = true;
-            try (InputStream is = getContentResolver().openInputStream(imageUri)) {
-                if (is == null) {
-                    Log.w(kLogTag, "openInputStream returned null (bounds), uri="
-                            + imageUri);
-                    runOnUiThread(() -> Toast.makeText(this,
-                            R.string.error_image_read,
-                            Toast.LENGTH_SHORT).show());
-                    return null;
-                }
-                BitmapFactory.decodeStream(is, null, opts);
-            }
-            int origW = opts.outWidth;
-            int origH = opts.outHeight;
-            int maxDim = Math.max(origW, origH);
-            // 截图里的二维码往往只占整图一小块，过早降采样会把模块缩到 1~2px，
-            // 直接导致 ZXing 找不到 finder pattern。
-            // 策略：在多个采样率上串行尝试，原图优先；每个采样率内尝试
-            // Hybrid/GlobalHistogram/Invert 三档快速二值化，作为 ML Kit 的
-            // 快速路径；ZXing 全部失败时才唤起 ML Kit 模型兜底。
-            int firstSample = 1;
-            while (maxDim / firstSample > 4096) {
-                firstSample *= 2;
-            }
-            Log.d(kLogTag, "image bounds=" + origW + "x" + origH
-                    + ", mime=" + opts.outMimeType
-                    + ", firstSample=" + firstSample);
-
-            int[] sampleCandidates = {firstSample, firstSample * 2,
-                    firstSample * 4};
-            String content = null;
-            for (int s : sampleCandidates) {
-                if (maxDim / s < 200) {
-                    // 缩得太小已没识别价值，跳过
-                    continue;
-                }
-                if (content == null) {
-                    Log.d(kLogTag, "trying decode with sample=" + s);
-                    content = decodeQrWithSample(imageUri, s);
-                    if (content != null) {
-                        break;
-                    }
-                }
-            }
-            if (content == null) {
-                // ZXing 全管线失败：上 ML Kit 兜底（bundled 模型，离线，
-                // 对屏摄/水印噪点截图鲁棒性远强于 ZXing 的阈值二值化）。
-                Log.d(kLogTag, "ZXing missed, fallback to ML Kit");
-                content = decodeWithMlKit(imageUri, firstSample);
-            }
-            if (content == null) {
-                Log.w(kLogTag,
-                        "QRCode not found after all retries, origSize="
-                                + origW + "x" + origH
-                                + ", mime=" + opts.outMimeType
-                                + ", samplesTried="
-                                + java.util.Arrays.toString(sampleCandidates));
-                return "";
-            }
-            Log.d(kLogTag, "QR decoded, length=" + content.length()
-                    + ", schemePrefix=" + safeSchemePrefix(content));
-            return content;
-        } catch (Exception e) {
-            Log.e(kLogTag, "decodeQrInBackground failed", e);
-            runOnUiThread(() -> Toast.makeText(this,
-                    R.string.error_image_read,
-                    Toast.LENGTH_SHORT).show());
-            return null;
-        }
-    }
-
-    /**
-     * 以指定采样率读取图片并尝试解码二维码。失败返回 null，
-     * 由调用者决定是否换一个采样率重试。
-     */
-    private String decodeQrWithSample(Uri imageUri, int sampleSize) {
-        Bitmap bitmap = null;
-        try {
-            BitmapFactory.Options opts = new BitmapFactory.Options();
-            opts.inSampleSize = Math.max(1, sampleSize);
-            opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
-            try (InputStream is = getContentResolver().openInputStream(imageUri)) {
-                if (is == null) {
-                    Log.w(kLogTag,
-                            "openInputStream returned null (decode), sample="
-                                    + sampleSize);
-                    return null;
-                }
-                bitmap = BitmapFactory.decodeStream(is, null, opts);
-            }
-            if (bitmap == null) {
-                Log.w(kLogTag, "decodeStream returned null, sample="
-                        + sampleSize);
-                return null;
-            }
-            int width = bitmap.getWidth();
-            int height = bitmap.getHeight();
-            int[] pixels = new int[width * height];
-            bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
-
-            RGBLuminanceSource source =
-                    new RGBLuminanceSource(width, height, pixels);
-
-            // 准备 hints。开启 TRY_HARDER：以更慢的速度换取更高的识别成功率，
-            // 适用于相册截图、有压缩噪声、占比较小的二维码。
-            Map<DecodeHintType, Object> hints =
-                    new EnumMap<>(DecodeHintType.class);
-            hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
-
-            // ZXing 快速路径：依次尝试 Hybrid/GlobalHistogram/Invert 三档
-            // 二值化。这三档都很轻量，能覆盖绝大多数清晰截图；任何一档命中
-            // 都立即返回。复杂样本（屏摄/水印/噪点等）让外层走 ML Kit 兜底，
-            // 不再在 ZXing 这里堆 Cleaned/Multi 等高成本路径。
-
-            // 1) HybridBinarizer + TRY_HARDER：通用最佳。
-            String r = tryDecode(new BinaryBitmap(new HybridBinarizer(source)),
-                    hints, "Hybrid+TryHarder", width, height);
-            if (r != null) {
-                return r;
-            }
-            // 2) GlobalHistogramBinarizer + TRY_HARDER：对低对比度截图更友好。
-            r = tryDecode(
-                    new BinaryBitmap(new GlobalHistogramBinarizer(source)),
-                    hints, "GlobalHist+TryHarder", width, height);
-            if (r != null) {
-                return r;
-            }
-            // 3) 反色：极少数浅底深码 / 深底浅码翻转的截图。
-            BinaryBitmap inverted =
-                    new BinaryBitmap(new HybridBinarizer(source.invert()));
-            r = tryDecode(inverted, hints, "Hybrid+Invert", width, height);
-            return r;
-        } catch (Exception e) {
-            Log.w(kLogTag, "decodeQrWithSample(" + sampleSize + ") error: "
-                    + e.getClass().getSimpleName() + " " + e.getMessage());
-            return null;
-        } finally {
-            if (bitmap != null) {
-                bitmap.recycle();
-            }
-        }
-    }
-
-    /** 单次 ZXing 解码尝试，封装异常并记录耗时。 */
-    private static String tryDecode(BinaryBitmap bb,
-            Map<DecodeHintType, Object> hints, String label,
-            int w, int h) {
-        QRCodeReader reader = new QRCodeReader();
-        try {
-            Result result = reader.decode(bb, hints);
-            Log.d(kLogTag, "QR decode hit by " + label + ", size="
-                    + w + "x" + h);
-            return result.getText();
-        } catch (com.google.zxing.NotFoundException miss) {
-            return null;
-        } catch (Exception e) {
-            Log.w(kLogTag, "QR decode " + label + " threw: "
-                    + e.getClass().getSimpleName() + " " + e.getMessage());
-            return null;
-        } finally {
-            reader.reset();
-        }
-    }
-
-    /**
-     * ML Kit 兜底解码：仅在 ZXing 全管线失败时调用。
-     *
-     * 设计要点：
-     *  1) 复用与 ZXing 相同的 inSampleSize 策略读 Bitmap，避免大图 OOM；
-     *  2) 必须运行在后台线程（外层 bgExecutor_ 已经是后台线程）；
-     *     ML Kit 返回 Task 异步结果，这里用 CountDownLatch 同步等待，
-     *     与现有"返回 String"的同步签名保持一致；
-     *  3) 限制识别格式为 QR_CODE，加快速度；
-     *  4) 加 8 秒超时，避免极端情况下卡住后台线程；
-     *  5) BarcodeScanner 是 Closeable，使用 try-with-resources 正确释放
-     *     底层 native 模型句柄。
-     *
-     * @return 解码到的内容；任何失败返回 null。
-     */
-    private String decodeWithMlKit(Uri imageUri, int sampleSize) {
-        Bitmap bitmap = null;
-        try {
-            BitmapFactory.Options opts = new BitmapFactory.Options();
-            opts.inSampleSize = Math.max(1, sampleSize);
-            opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
-            try (InputStream is = getContentResolver().openInputStream(imageUri)) {
-                if (is == null) {
-                    Log.w(kLogTag, "ML Kit: openInputStream returned null");
-                    return null;
-                }
-                bitmap = BitmapFactory.decodeStream(is, null, opts);
-            }
-            if (bitmap == null) {
-                Log.w(kLogTag, "ML Kit: decodeStream returned null");
-                return null;
-            }
-
-            BarcodeScannerOptions scannerOpts =
-                    new BarcodeScannerOptions.Builder()
-                            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                            .build();
-            // rotationDegrees=0：截图都是正向的，不需要旋转。
-            InputImage input = InputImage.fromBitmap(bitmap, 0);
-            final String[] holder = new String[1];
-            final Throwable[] errHolder = new Throwable[1];
-            final java.util.concurrent.CountDownLatch latch =
-                    new java.util.concurrent.CountDownLatch(1);
-
-            try (BarcodeScanner scanner =
-                         BarcodeScanning.getClient(scannerOpts)) {
-                scanner.process(input)
-                        .addOnSuccessListener(barcodes -> {
-                            if (barcodes != null && !barcodes.isEmpty()) {
-                                Barcode b = barcodes.get(0);
-                                String raw = b.getRawValue();
-                                if (raw == null) {
-                                    // 部分二进制 QR 没有 rawValue，
-                                    // 退而求其次尝试 displayValue。
-                                    raw = b.getDisplayValue();
-                                }
-                                holder[0] = raw;
-                            }
-                            latch.countDown();
-                        })
-                        .addOnFailureListener(e -> {
-                            errHolder[0] = e;
-                            latch.countDown();
-                        });
-                if (!latch.await(8,
-                        java.util.concurrent.TimeUnit.SECONDS)) {
-                    Log.w(kLogTag, "ML Kit: timeout after 8s");
-                    return null;
-                }
-            }
-
-            if (errHolder[0] != null) {
-                Log.w(kLogTag, "ML Kit: process failed: "
-                        + errHolder[0].getClass().getSimpleName()
-                        + " " + errHolder[0].getMessage());
-                return null;
-            }
-            if (holder[0] == null) {
-                Log.w(kLogTag, "ML Kit: no QR found");
-                return null;
-            }
-            Log.d(kLogTag, "ML Kit: QR decoded, length="
-                    + holder[0].length()
-                    + ", schemePrefix=" + safeSchemePrefix(holder[0]));
-            return holder[0];
-        } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
-            Log.w(kLogTag, "ML Kit: interrupted");
-            return null;
-        } catch (Exception e) {
-            Log.w(kLogTag, "ML Kit: unexpected error: "
-                    + e.getClass().getSimpleName() + " " + e.getMessage());
-            return null;
-        } finally {
-            if (bitmap != null) {
-                bitmap.recycle();
-            }
-        }
-    }
-
-    /** 仅取 scheme://host 段用于日志，避免把 secret 整段打到 logcat。 */
-    private static String safeSchemePrefix(String s) {
-        if (s == null) {
-            return "<null>";
-        }
-        int q = s.indexOf('?');
-        String head = q > 0 ? s.substring(0, q) : s;
-        if (head.length() > 64) {
-            head = head.substring(0, 64) + "...";
-        }
-        return head;
     }
 
     private void handleScanResult(String content) {
@@ -716,9 +396,10 @@ public class MainActivity extends BaseSecureActivity {
         OtpAccount acc = OtpUriParser.parse(content);
         if (acc == null) {
             Log.w(kLogTag, "OtpUriParser.parse returned null, prefix="
-                    + safeSchemePrefix(content));
-            Toast.makeText(this, R.string.error_qr_invalid,
-                    Toast.LENGTH_SHORT).show();
+                    + AlbumQrDecoder.safeSchemePrefix(content));
+            // 不再仅 Toast 草草了事：把原文塞进预览页让用户看到全文 + 一键复制。
+            // 这是"识别到了二维码但内容不是 MFA 规范"的兜底入口。
+            startActivity(QrContentPreviewActivity.newIntent(this, content));
             return;
         }
         try {
@@ -821,497 +502,65 @@ public class MainActivity extends BaseSecureActivity {
     }
 
     /**
-     * 长按弹出条目操作菜单：编辑 / 置顶（或取消置顶）/ 删除。
-     * 删除入口与左滑删除走同一个 confirm + Snackbar 撤销路径，避免不一致。
-     */
-    private void onItemLong(OtpAccount acc) {
-        CharSequence[] items = new CharSequence[]{
-                getString(R.string.action_edit),
-                getString(acc.favorite
-                        ? R.string.action_unpin
-                        : R.string.action_pin),
-                getString(R.string.action_delete)
-        };
-        new AlertDialog.Builder(this)
-                .setTitle(acc.displayLabel())
-                .setItems(items, (d, which) -> {
-                    if (which == 0) {
-                        showEditDialog(acc);
-                    } else if (which == 1) {
-                        toggleFavorite(acc);
-                    } else if (which == 2) {
-                        confirmDelete(acc);
-                    }
-                })
-                .setNegativeButton(R.string.dialog_cancel, null)
-                .show();
-    }
-
-    /** 切换收藏置顶状态：仅写一列 + 重新加载列表，不影响 secret 路径。 */
-    private void toggleFavorite(OtpAccount acc) {
-        boolean target = !acc.favorite;
-        try {
-            OtpRepository.get(this).setFavorite(acc.id, target);
-            acc.favorite = target;
-            reload();
-        } catch (Exception e) {
-            Toast.makeText(this,
-                    getString(R.string.error_save_failed, e.getMessage()),
-                    Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    /** 提取出来的"二次确认 + 软删除 + Snackbar 撤销"流程，长按和滑动共用。 */
-    private void confirmDelete(OtpAccount acc) {
-        new AlertDialog.Builder(this)
-                .setTitle(acc.displayLabel())
-                .setMessage(R.string.confirm_delete)
-                .setNegativeButton(R.string.dialog_cancel, null)
-                .setPositiveButton(R.string.dialog_ok, (d, w) -> {
-                    OtpRepository.get(this).delete(acc.id);
-                    reload();
-                    showUndoDeleteSnackbar(acc);
-                })
-                .show();
-    }
-
-    /** 长按改为编辑：仅允许修改 issuer / account，不动 secret。 */
-    private void showEditDialog(OtpAccount acc) {
-        View dialogView = LayoutInflater.from(this)
-                .inflate(R.layout.dialog_edit_account, null, false);
-        final EditText etIssuer = dialogView.findViewById(R.id.et_edit_issuer);
-        final EditText etAccount = dialogView.findViewById(R.id.et_edit_account);
-        etIssuer.setText(acc.issuer == null ? "" : acc.issuer);
-        etAccount.setText(acc.account == null ? "" : acc.account);
-
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.title_edit_account)
-                .setView(dialogView)
-                .setNegativeButton(R.string.action_cancel, null)
-                .setPositiveButton(R.string.action_save, (d, w) -> {
-                    String newIssuer = etIssuer.getText() == null
-                            ? "" : etIssuer.getText().toString().trim();
-                    String newAccount = etAccount.getText() == null
-                            ? "" : etAccount.getText().toString().trim();
-                    if (TextUtils.isEmpty(newIssuer)
-                            && TextUtils.isEmpty(newAccount)) {
-                        Toast.makeText(this, R.string.error_required,
-                                Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    acc.issuer = newIssuer;
-                    acc.account = newAccount;
-                    try {
-                        OtpRepository.get(this).update(acc);
-                        reload();
-                    } catch (Exception e) {
-                        Toast.makeText(this,
-                                getString(R.string.error_save_failed,
-                                        e.getMessage()),
-                                Toast.LENGTH_SHORT).show();
-                    }
-                })
-                .show();
-    }
-
-    /**
      * 为列表绑定拖拽排序 + 左滑删除。
-     * 拖拽：长按 item 在豆点区可上下拖动调整顺序，抬手时事务批量写回 sortOrder。
-     * 为避免搜索过滤态下 data_ 只是 allData_ 的子集造成原序错乱，
-     * 仅在无搜索词时启用拖动。
+     * 实际的视觉绘制 / 状态管理 / 排序持久化下沉到 {@link SwipeAndDragCallback}，
+     * 本方法只构造 Callback 并 attach 到 RecyclerView。
      */
     private void attachSwipeToDelete() {
-        ItemTouchHelper.Callback cb = new ItemTouchHelper.Callback() {
-            private final Paint bgPaint_ = new Paint(Paint.ANTI_ALIAS_FLAG);
-            private final Paint textPaint_ = new Paint(Paint.ANTI_ALIAS_FLAG);
-            private final Rect textBounds_ = new Rect();
-            private final RectF rectF_ = new RectF();
-            private final String label_ = getString(R.string.action_delete);
-            private final float textPx_ = TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_SP, 16f,
-                    getResources().getDisplayMetrics());
-            private final int padPx_ = (int) TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP, 24f,
-                    getResources().getDisplayMetrics());
-            // 与 item_otp.xml 中 CardView 的视觉参数保持一致。
-            private final float cornerPx_ = TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP, 12f,
-                    getResources().getDisplayMetrics());
-            private final int marginHPx_ = (int) TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP, 12f,
-                    getResources().getDisplayMetrics());
-            private final int marginVPx_ = (int) TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP, 6f,
-                    getResources().getDisplayMetrics());
-            /** 本次拖拽是否发生过位置变化，决定 clearView 是否需要落库。 */
-            private boolean dragMoved_;
-
-            {
-                bgPaint_.setColor(androidx.core.content.ContextCompat.getColor(
-                        MainActivity.this, R.color.progress_warn));
-                bgPaint_.setStyle(Paint.Style.FILL);
-                textPaint_.setColor(Color.WHITE);
-                textPaint_.setTextSize(textPx_);
-                textPaint_.setTypeface(Typeface.DEFAULT_BOLD);
-            }
-
-            @Override
-            public int getMovementFlags(@NonNull RecyclerView rv,
-                                        @NonNull RecyclerView.ViewHolder vh) {
-                // 搜索过滤态下仅保留左滑删除；仅在全量列表下才启用拖拽。
-                int swipe = ItemTouchHelper.LEFT;
-                int drag = currentQuery_.isEmpty()
-                        ? (ItemTouchHelper.UP | ItemTouchHelper.DOWN) : 0;
-                return makeMovementFlags(drag, swipe);
-            }
-
-            @Override
-            public boolean isLongPressDragEnabled() {
-                // 仅全量列表下才允许长按发起拖动，避免过滤态详顺序错乱。
-                return currentQuery_.isEmpty();
-            }
-
-            @Override
-            public boolean isItemViewSwipeEnabled() {
-                return true;
-            }
-
-            @Override
-            public boolean onMove(@NonNull RecyclerView rv,
-                                  @NonNull RecyclerView.ViewHolder vh,
-                                  @NonNull RecyclerView.ViewHolder target) {
-                int from = vh.getBindingAdapterPosition();
-                int to = target.getBindingAdapterPosition();
-                if (from < 0 || to < 0
-                        || from >= data_.size() || to >= data_.size()) {
-                    return false;
-                }
-                // 收藏分区隔离：仅允许在同一 favorite 状态内拖动，避免出现
-                // "把一个非收藏拖到收藏区然后顺序错乱"的视觉/语义不一致。
-                // 用户想跨区移动应通过长按菜单"取消置顶"先改变分区。
-                if (data_.get(from).favorite != data_.get(to).favorite) {
-                    return false;
-                }
-                // 同步调整 data_ 与 allData_（两者在未过滤时为同顺序，但不是同一个
-                // List 引用），其中主要列表是 data_；ClearView 时按 data_ 顺序写回 DB。
-                java.util.Collections.swap(data_, from, to);
-                if (from < allData_.size() && to < allData_.size()) {
-                    java.util.Collections.swap(allData_, from, to);
-                }
-                adapter_.notifyItemMoved(from, to);
-                dragMoved_ = true;
-                return true;
-            }
-
-            @Override
-            public void onSelectedChanged(
-                    @androidx.annotation.Nullable RecyclerView.ViewHolder vh,
-                    int actionState) {
-                super.onSelectedChanged(vh, actionState);
-                if (actionState == ItemTouchHelper.ACTION_STATE_DRAG
-                        && vh != null) {
-                    // 拖拽中轻微隐去阴影提示“拿起”状态；在 clearView 中复原。
-                    vh.itemView.setAlpha(0.85f);
-                    vh.itemView.setScaleX(1.02f);
-                    vh.itemView.setScaleY(1.02f);
-                }
-            }
-
-            @Override
-            public void clearView(@NonNull RecyclerView rv,
-                                  @NonNull RecyclerView.ViewHolder vh) {
-                super.clearView(rv, vh);
-                vh.itemView.setAlpha(1f);
-                vh.itemView.setScaleX(1f);
-                vh.itemView.setScaleY(1f);
-                if (!dragMoved_) {
-                    return;
-                }
-                dragMoved_ = false;
-                // 抓一份 id 快照后用后台线程事务批量更新，避免阻塞主线程。
-                long[] orderedIds = new long[data_.size()];
-                for (int i = 0; i < data_.size(); i++) {
-                    orderedIds[i] = data_.get(i).id;
-                }
-                bgExecutor_.execute(() -> {
-                    try {
-                        OtpRepository.get(MainActivity.this)
-                                .updateSortOrder(orderedIds);
-                    } catch (Exception e) {
-                        Log.w(kLogTag, "persist sortOrder failed", e);
-                    }
-                });
-            }
-
-            @Override
-            public void onSwiped(@NonNull RecyclerView.ViewHolder vh,
-                                 int direction) {
-                int pos = vh.getBindingAdapterPosition();
-                if (pos < 0 || pos >= data_.size()) {
-                    return;
-                }
-                OtpAccount acc = data_.get(pos);
-                new AlertDialog.Builder(MainActivity.this)
-                        .setTitle(acc.displayLabel())
-                        .setMessage(R.string.confirm_delete)
-                        .setNegativeButton(R.string.dialog_cancel,
-                                (d, w) -> adapter_.notifyItemChanged(pos))
-                        .setOnCancelListener(
-                                d -> adapter_.notifyItemChanged(pos))
-                        .setPositiveButton(R.string.dialog_ok, (d, w) -> {
-                            // 软删除：先记住完整 OtpAccount（含 secret 明文）以便撤销，
-                            // 再从数据库中删除。Snackbar 10s 内点击"撤销"则重新插入。
-                            OtpAccount snapshot = acc;
-                            OtpRepository.get(MainActivity.this)
-                                    .delete(snapshot.id);
-                            reload();
-                            showUndoDeleteSnackbar(snapshot);
-                        })
-                        .show();
-            }
-
-            @Override
-            public void onChildDraw(@NonNull Canvas c,
-                                    @NonNull RecyclerView rv,
-                                    @NonNull RecyclerView.ViewHolder vh,
-                                    float dX, float dY,
-                                    int actionState, boolean isCurrentlyActive) {
-                View item = vh.itemView;
-                if (dX < 0) {
-                    // 与 CardView 的 marginHorizontal=12dp / marginVertical=6dp 对齐
-                    float top = item.getTop() + marginVPx_;
-                    float bottom = item.getBottom() - marginVPx_;
-                    float right = item.getRight() - marginHPx_;
-                    float left = right + dX;
-                    // 防止滑动距离很小时，left 超过 right 造成绘制异常
-                    if (left > right) {
-                        left = right;
-                    }
-                    rectF_.set(left, top, right, bottom);
-                    c.drawRoundRect(rectF_, cornerPx_, cornerPx_, bgPaint_);
-
-                    textPaint_.getTextBounds(label_, 0, label_.length(),
-                            textBounds_);
-                    // 仅在背景宽度足以容纳文字时绘制，避免越界压在卡片上
-                    float bgWidth = right - left;
-                    float textWidth = textBounds_.width();
-                    if (bgWidth >= textWidth + padPx_) {
-                        float ty = top + (bottom - top + textBounds_.height())
-                                / 2f;
-                        float tx = right - padPx_ - textWidth;
-                        c.drawText(label_, tx, ty, textPaint_);
-                    }
-                }
-                super.onChildDraw(c, rv, vh, dX, dY,
-                        actionState, isCurrentlyActive);
-            }
-        };
+        SwipeAndDragCallback cb = new SwipeAndDragCallback(this, swipeHost_);
         new ItemTouchHelper(cb).attachToRecyclerView(rvAccounts_);
     }
 
-    /** RecyclerView Adapter（内部类，避免拆分小文件、控制类数量）。 */
-    static final class OtpAdapter
-            extends RecyclerView.Adapter<OtpAdapter.VH> {
-
-        interface ItemAction { void on(OtpAccount acc); }
-        interface RevealQuery { boolean isRevealed(long accountId); }
-
-        /** payload 标识：脱敏遮罩刷新。 */
-        private static final Object kPayloadMask = new Object();
-
-        private final List<OtpAccount> data_;
-        private final ItemAction onClick_;
-        private final ItemAction onLong_;
-        private final RevealQuery reveal_;
-
-        OtpAdapter(List<OtpAccount> data, ItemAction onClick,
-                   ItemAction onLong, RevealQuery reveal) {
-            data_ = data;
-            onClick_ = onClick;
-            onLong_ = onLong;
-            reveal_ = reveal;
-            setHasStableIds(true);
-        }
-
+    /**
+     * SwipeAndDragCallback 的 Host 实现：把 Activity 内的列表 / Adapter /
+     * 后台线程 / 仓库 暴露给 Callback，并把"用户左滑请求删除"路由到带
+     * 二次确认 + Snackbar 撤销 的标准删除流程。
+     */
+    private final SwipeAndDragCallback.Host swipeHost_ = new SwipeAndDragCallback.Host() {
         @Override
-        public long getItemId(int position) {
-            return data_.get(position).id;
-        }
-
         @NonNull
-        @Override
-        public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            View v = LayoutInflater.from(parent.getContext())
-                    .inflate(R.layout.item_otp, parent, false);
-            return new VH(v);
-        }
+        public List<OtpAccount> getDataList() { return data_; }
 
         @Override
-        public void onBindViewHolder(@NonNull VH h, int position) {
-            OtpAccount acc = data_.get(position);
-            h.bind(acc, reveal_);
-            h.itemView.setOnClickListener(v -> onClick_.on(acc));
-            h.itemView.setOnLongClickListener(v -> {
-                onLong_.on(acc);
-                return true;
-            });
-        }
+        @NonNull
+        public List<OtpAccount> getAllDataList() { return allData_; }
 
-        /** 脱敏所有 item 的验证码（后台遮罩用），并停掉进度条数值。 */
-        void maskAllCodes() {
-            notifyItemRangeChanged(0, getItemCount(), kPayloadMask);
-        }
+        @Override
+        public boolean isFilterActive() { return !currentQuery_.isEmpty(); }
 
-        /** 仅刷新可见 item 的码与进度，避免整体重绘闪烁。 */
-        void notifyTimeChanged() {
-            notifyItemRangeChanged(0, getItemCount(), Boolean.TRUE);
+        @Override
+        @NonNull
+        public RecyclerView.Adapter<?> getAdapter() { return adapter_; }
+
+        @Override
+        @NonNull
+        public java.util.concurrent.Executor getBackgroundExecutor() {
+            return bgExecutor_;
         }
 
         @Override
-        public void onBindViewHolder(@NonNull VH h, int position,
-                                     @NonNull List<Object> payloads) {
-            if (!payloads.isEmpty()) {
-                if (payloads.contains(kPayloadMask)) {
-                    h.maskCode();
-                } else {
-                    h.refreshCode(data_.get(position), reveal_);
-                }
-            } else {
-                onBindViewHolder(h, position);
-            }
+        @NonNull
+        public OtpRepository getRepository() {
+            return OtpRepository.get(MainActivity.this);
         }
 
         @Override
-        public int getItemCount() {
-            return data_.size();
+        public void onItemSwipedToDelete(@NonNull OtpAccount acc, int adapterPosition) {
+            // 与原匿名内部类等价的二次确认逻辑：取消 / 关闭对话框时把被滑开的
+            // 卡片复位（notifyItemChanged），确认删除则走 软删除 + Snackbar 撤销。
+            new AlertDialog.Builder(MainActivity.this)
+                    .setTitle(acc.displayLabel())
+                    .setMessage(R.string.confirm_delete)
+                    .setNegativeButton(R.string.dialog_cancel,
+                            (d, w) -> adapter_.notifyItemChanged(adapterPosition))
+                    .setOnCancelListener(
+                            d -> adapter_.notifyItemChanged(adapterPosition))
+                    .setPositiveButton(R.string.dialog_ok, (d, w) -> {
+                        OtpRepository.get(MainActivity.this).delete(acc.id);
+                        reload();
+                        accountActions_.showUndoSnackbar(acc);
+                    })
+                    .show();
         }
-
-        static final class VH extends RecyclerView.ViewHolder {
-            private static final int kWarnThresholdSec = 5;
-            /** 隐藏验证码时的默认遮罩字符串（与 6 位对齐）。 */
-            private static final String kHiddenMask = "••• •••";
-
-            final ImageView ivIcon_;
-            final TextView tvIssuer_;
-            final TextView tvAccount_;
-            final TextView tvCode_;
-            final TextView tvNextCode_;
-            final TextView tvRemaining_;
-            final ProgressBar pb_;
-
-            VH(View v) {
-                super(v);
-                ivIcon_ = v.findViewById(R.id.iv_issuer_icon);
-                tvIssuer_ = v.findViewById(R.id.tv_issuer);
-                tvAccount_ = v.findViewById(R.id.tv_account);
-                tvCode_ = v.findViewById(R.id.tv_code);
-                tvNextCode_ = v.findViewById(R.id.tv_next_code);
-                tvRemaining_ = v.findViewById(R.id.tv_remaining);
-                pb_ = v.findViewById(R.id.pb_remaining);
-            }
-
-            void bind(OtpAccount acc, RevealQuery reveal) {
-                String issuerText = acc.issuer == null ? "" : acc.issuer;
-                // T9：收藏置顶在 issuer 前加 ★，零新增资源；不影响搜索匹配语义，
-                // 因为 matches() 走的是 acc.issuer 字段而非这里的渲染文本。
-                if (acc.favorite) {
-                    issuerText = "★ " + issuerText;
-                }
-                tvIssuer_.setText(issuerText);
-                tvAccount_.setText(acc.account == null ? "" : acc.account);
-                if (ivIcon_ != null) {
-                    ivIcon_.setImageDrawable(
-                            new IssuerIconDrawable(acc.issuer, acc.account));
-                }
-                refreshCode(acc, reveal);
-            }
-
-            /** 后台遮罩：仅显示占位字符，不暴露真实验证码。 */
-            void maskCode() {
-                tvCode_.setText("•• ••• •••");
-                tvNextCode_.setVisibility(View.GONE);
-                tvRemaining_.setText("");
-                pb_.setProgress(0);
-            }
-
-            void refreshCode(OtpAccount acc, RevealQuery reveal) {
-                Context ctx = itemView.getContext();
-                UiPreferences uiPrefs = UiPreferences.get(ctx);
-                boolean hideByPref = uiPrefs.isHideCodes();
-                boolean revealed = reveal != null && reveal.isRevealed(acc.id);
-                boolean shouldHide = hideByPref && !revealed;
-
-                if (acc.isHotp()) {
-                    // HOTP：显示当前计数器对应的验证码，无倒计时
-                    String code = OtpGenerator.hotp(acc.secret, acc.algorithm,
-                            acc.digits, acc.counter);
-                    tvCode_.setText(shouldHide ? kHiddenMask : formatCode(code));
-                    tvNextCode_.setVisibility(View.GONE);
-                    tvRemaining_.setText(ctx.getString(R.string.hotp_tap_hint));
-                    int color = androidx.core.content.ContextCompat.getColor(
-                            ctx, R.color.progress_active);
-                    tvRemaining_.setTextColor(color);
-                    pb_.setVisibility(View.GONE);
-                } else {
-                    // TOTP：正常倒计时逻辑
-                    pb_.setVisibility(View.VISIBLE);
-                    long now = System.currentTimeMillis();
-                    String code = OtpGenerator.totp(acc.secret, acc.algorithm,
-                            acc.digits, acc.period, now);
-                    tvCode_.setText(shouldHide ? kHiddenMask : formatCode(code));
-                    int remain = OtpGenerator.remainingSeconds(acc.period, now);
-                    pb_.setMax(acc.period);
-                    pb_.setProgress(remain);
-
-                    int colorRes = remain <= kWarnThresholdSec
-                            ? R.color.progress_warn
-                            : R.color.progress_active;
-                    int color = androidx.core.content.ContextCompat.getColor(
-                            ctx, colorRes);
-                    tintProgress(pb_, color);
-                    tvRemaining_.setTextColor(color);
-                    tvRemaining_.setText(ctx.getString(
-                            R.string.fmt_remaining_seconds, remain));
-
-                    // T4：剩余 ≤5s 且偏好开启时、且不隐藏时，呈现下一码。
-                    if (!shouldHide && uiPrefs.isShowNextCode()
-                            && remain <= kWarnThresholdSec) {
-                        long nextWindowStart =
-                                ((now / 1000L) / acc.period + 1) * acc.period
-                                        * 1000L;
-                        String nextCode = OtpGenerator.totp(acc.secret,
-                                acc.algorithm, acc.digits, acc.period,
-                                nextWindowStart);
-                        tvNextCode_.setText(ctx.getString(
-                                R.string.fmt_next_code, formatCode(nextCode)));
-                        tvNextCode_.setVisibility(View.VISIBLE);
-                    } else {
-                        tvNextCode_.setVisibility(View.GONE);
-                    }
-                }
-            }
-
-            /** 仅替换前景色，保留 layer-list 背景轨道色，避免整条进度条变色。 */
-            private void tintProgress(ProgressBar bar, int color) {
-                Drawable d = bar.getProgressDrawable();
-                if (d instanceof LayerDrawable) {
-                    Drawable progress = ((LayerDrawable) d).findDrawableByLayerId(
-                            android.R.id.progress);
-                    if (progress != null) {
-                        progress.mutate().setColorFilter(
-                                color, PorterDuff.Mode.SRC_IN);
-                    }
-                } else if (d != null) {
-                    d.mutate().setColorFilter(color, PorterDuff.Mode.SRC_IN);
-                }
-            }
-
-            private String formatCode(String code) {
-                if (code.length() == 6) {
-                    return code.substring(0, 3) + " " + code.substring(3);
-                }
-                return code;
-            }
-        }
-    }
+    };
 }
