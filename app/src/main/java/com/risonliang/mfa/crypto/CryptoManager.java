@@ -192,8 +192,7 @@ public final class CryptoManager {
         byte[] iv = new byte[IV_LENGTH];
         SECURE_RANDOM.nextBytes(iv);
         Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-        cipher.init(Cipher.ENCRYPT_MODE, key,
-                new GCMParameterSpec(TAG_LENGTH_BIT, iv));
+        cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(TAG_LENGTH_BIT, iv));
         byte[] cipherText = cipher.doFinal(plain);
         return concatIvAndCipher(iv, cipherText);
     }
@@ -203,8 +202,7 @@ public final class CryptoManager {
         byte[] iv = new byte[IV_LENGTH];
         System.arraycopy(payload, 0, iv, 0, IV_LENGTH);
         Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-        cipher.init(Cipher.DECRYPT_MODE, key,
-                new GCMParameterSpec(TAG_LENGTH_BIT, iv));
+        cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(TAG_LENGTH_BIT, iv));
         return cipher.doFinal(payload, IV_LENGTH, payload.length - IV_LENGTH);
     }
 

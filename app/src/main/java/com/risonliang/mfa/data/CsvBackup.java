@@ -97,10 +97,8 @@ public final class CsvBackup {
             String algo = cell(row, idx, "algorithm");
             a.algorithm = (algo == null || algo.isEmpty())
                     ? OtpAccount.DEFAULT_ALGO : algo.toUpperCase();
-            a.digits = parseIntOr(cell(row, idx, "digits"),
-                    OtpAccount.DEFAULT_DIGITS);
-            a.period = parseIntOr(cell(row, idx, "period"),
-                    OtpAccount.DEFAULT_PERIOD);
+            a.digits = parseIntOr(cell(row, idx, "digits"), OtpAccount.DEFAULT_DIGITS);
+            a.period = parseIntOr(cell(row, idx, "period"), OtpAccount.DEFAULT_PERIOD);
             a.counter = parseLongOr(cell(row, idx, "counter"), 0);
             result.add(a);
         }
