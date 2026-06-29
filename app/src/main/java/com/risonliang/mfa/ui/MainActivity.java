@@ -463,10 +463,22 @@ public class MainActivity extends BaseSecureActivity {
             int origW = opts.outWidth;
             int origH = opts.outHeight;
             int maxDim = Math.max(origW, origH);
-            // 即便走 ML Kit，仍需要 inSampleSize 防大图 OOM。
-            // 经验阈值 4096：超过这个边长才降采样，否则原图喂给 ML Kit 最佳。
+            // inSampleSize 阈值：长边 > 2048 才降采样。
+            //
+            // 为什么不是更大的阈值（如 4096）：在华为高分屏典型截图（2400-3060
+            // 边长）上实测——4096 阈值下 sampleSize=1，原图直接喂 ML Kit 时
+            // 偶现识别失败；ImageEditActivity 内部用 2048 阈值（等价 1/2 降采
+            // 样），同一张图"什么都不点直接重新识别"反而能命中。
+            //
+            // 原理：ML Kit 的 QR finder pattern 检测对"每个 module ≈ 4-8 像
+            // 素"是甜点区间，原图上 module 往往 12-20 像素，且摩尔纹/JPEG 高
+            // 频噪声未经低通滤波，反而干扰检测。一次 1/2 sampleSize 做了一次
+            // box-filter 低通，噪点被均化，module 边缘更干净。
+            //
+            // 注：这只是单尺度修正，覆盖典型华为机型尺寸。后续若再撞到不同尺寸
+            // 失败 case，应升级为多尺度兜底（2048 / 原图 / 1024 三档）。
             int sampleSize = 1;
-            while (maxDim / sampleSize > 4096) {
+            while (maxDim / sampleSize > 2048) {
                 sampleSize *= 2;
             }
             Log.d(kLogTag, "image bounds=" + origW + "x" + origH
