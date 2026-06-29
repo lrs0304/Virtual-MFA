@@ -102,15 +102,20 @@ dependencies {
     implementation libs.constraintlayout
     implementation libs.biometric
 
-    // ZXing 仍保留：相机实时扫码 ScanActivity 走 BarcodeView 管线，依赖
-    // zxing-android-embedded + zxing-core。本分支只把"相册解码"切到 ML Kit
-    // 单管线，实时扫码保持不变。
-    implementation libs.zxing.embedded
-    implementation libs.zxing.core
+    // CameraX：实时扫码（ScanActivity）走 Preview + ImageAnalysis 双 use case。
+    //  - camera-core / camera-camera2：核心 + Camera2 后端实现；
+    //  - camera-lifecycle：把 use case 绑到 Activity 生命周期，无需手动启停；
+    //  - camera-view：提供 PreviewView，自动处理 SurfaceProvider 与方向。
+    // 取代历史上的 zxing-android-embedded（其底层 Camera1 在小米/华为新机型
+    // 上识别率极差，已彻底移除）。
+    implementation libs.camerax.core
+    implementation libs.camerax.camera2
+    implementation libs.camerax.lifecycle
+    implementation libs.camerax.view
 
     // ML Kit 条码扫描（bundled 版，内嵌模型，完全离线）。
-    // experiment/album-mlkit-only 分支：相册解码唯一管线，
-    // 不再走 ZXing 三档二值化快速路径，验证 ML Kit 单一管线的可用性。
+    // 实时扫码（ScanActivity）与相册解码（AlbumQrDecoder / QrDecoder）
+    // 共用同一管线，统一技术栈。
     implementation libs.mlkit.barcode
 
     testImplementation libs.junit

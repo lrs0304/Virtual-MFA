@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 risonliang. All rights reserved.
+
+  扫码页中央装饰扫码框：透明填充 + 2dp 半透明白色描边 + 圆角。
+  纯装饰，识别区域为整帧预览。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@android:color/transparent" />
+    <stroke
+        android:width="2dp"
+        android:color="#B3FFFFFF" />
+    <corners android:radius="12dp" />
+</shape>

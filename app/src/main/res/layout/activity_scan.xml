@@ -1,18 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copyright (c) 2026 risonliang. All rights reserved.
+
+  扫码页布局：CameraX PreviewView 实时预览 + 中央半透明扫码框 overlay。
+  历史上这里使用 com.journeyapps.barcodescanner.BarcodeView，已随 A 方案
+  迁移到 CameraX + ML Kit，不再依赖 zxing。
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/black">
 
-    <com.journeyapps.barcodescanner.BarcodeView
-        android:id="@+id/barcode_view"
+    <!--
+      PreviewView：CameraX 提供的相机预览控件。
+       - implementationMode=performance：优先 SurfaceView，性能最好；
+       - scaleType=fillCenter：等比缩放并居中裁剪，避免预览帧畸变；
+         ML Kit 在裁剪后的预览上识别精度不受影响。
+    -->
+    <androidx.camera.view.PreviewView
+        android:id="@+id/preview_view"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        app:implementationMode="performance"
+        app:scaleType="fillCenter"
+        xmlns:app="http://schemas.android.com/apk/res-auto" />
 
-    <com.journeyapps.barcodescanner.ViewfinderView
+    <!--
+      中央半透明扫码框：纯装饰，仅用于引导用户对准。
+      实际识别区域是整帧预览（ML Kit 内部自带 finder pattern 检测）。
+    -->
+    <View
         android:id="@+id/viewfinder"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_width="260dp"
+        android:layout_height="260dp"
+        android:layout_gravity="center"
+        android:background="@drawable/scan_viewfinder" />
 
     <TextView
         android:id="@+id/tv_status"

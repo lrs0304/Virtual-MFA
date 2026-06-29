@@ -7,7 +7,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
-    <!-- 显式拒绝 ZXing 库可能传入的 INTERNET 权限 -->
+    <!-- 显式拒绝第三方库可能传入的联网权限 -->
     <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
 
@@ -31,9 +31,6 @@
             - com.google.android.datatransport.* (TransportBackendDiscovery /
               JobInfoSchedulerService / AlarmManagerSchedulerBroadcastReceiver)：
               来自 ML Kit 的 Firelog 上报链路，无网络权限下永远跑不起来。
-            - com.journeyapps.barcodescanner.CaptureActivity：
-              zxing-android-embedded 自带的扫码 Activity，本项目使用自实现的
-              ScanActivity，无需暴露这个组件。
             移除后，R8 会进一步裁剪相关类，APK 体积减少且 manifest 更干净，
             也便于上架审核解释"为何无网"。
         -->
@@ -56,10 +53,6 @@
             tools:ignore="Instantiatable,MissingClass" />
         <receiver
             android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver"
-            tools:node="remove"
-            tools:ignore="Instantiatable,MissingClass" />
-        <activity
-            android:name="com.journeyapps.barcodescanner.CaptureActivity"
             tools:node="remove"
             tools:ignore="Instantiatable,MissingClass" />
 
