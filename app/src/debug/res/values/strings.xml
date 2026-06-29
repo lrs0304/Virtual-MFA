@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2026 risonliang. All rights reserved.
+  ~
+  ~ debug buildType 专属资源覆盖：仅覆盖 app_name，给桌面图标 / 应用列表 /
+  ~ LockActivity 顶部标题统一加上 "-dev" 后缀，便于在同一台设备上同时安装
+  ~ debug（com.risonliang.mfa.debug）和 release（com.risonliang.mfa）时
+  ~ 一眼分辨。其它字符串完全沿用 main 资源，保持单一来源。
+  -->
+<resources>
+    <string name="app_name">MFA二次验证-dev</string>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) 2026 risonliang. All rights reserved.
+  ~
+  ~ debug buildType 英文资源覆盖：和 values/strings.xml 同步加 "-dev" 后缀。
+  -->
+<resources>
+    <string name="app_name">MFA Authenticator-dev</string>
+</resources>
