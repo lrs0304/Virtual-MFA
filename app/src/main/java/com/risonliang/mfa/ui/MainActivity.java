@@ -9,10 +9,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
-import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
@@ -28,7 +26,6 @@ import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
-import com.google.android.material.snackbar.Snackbar;
 import com.risonliang.mfa.R;
 import com.risonliang.mfa.crypto.OtpGenerator;
 import com.risonliang.mfa.data.GaMigrationDecoder;
@@ -51,6 +48,8 @@ public class MainActivity extends BaseSecureActivity {
     private EditText etSearch_;
     private ImageButton btnSearchClear_;
     private OtpAdapter adapter_;
+    /** 编辑/收藏/删除/撤销 等条目级交互的统一入口，避免在 Activity 内堆对话框代码。 */
+    private AccountActions accountActions_;
     /** 适配器实际渲染的列表（受搜索条件过滤）。 */
     private final List<OtpAccount> data_ = new ArrayList<>();
     /** 全量数据缓存：搜索过滤的输入源，避免重复读 DB。 */
@@ -102,7 +101,10 @@ public class MainActivity extends BaseSecureActivity {
         etSearch_ = findViewById(R.id.et_search);
         btnSearchClear_ = findViewById(R.id.btn_search_clear);
         rvAccounts_.setLayoutManager(new LinearLayoutManager(this));
-        adapter_ = new OtpAdapter(data_, this::onItemClick, this::onItemLong,
+        accountActions_ = new AccountActions(
+                this, findViewById(R.id.root_main), this::reload);
+        adapter_ = new OtpAdapter(data_, this::onItemClick,
+                accountActions_::showLongPressMenu,
                 this::isCodeRevealed);
         rvAccounts_.setAdapter(adapter_);
         attachSwipeToDelete();
@@ -326,40 +328,6 @@ public class MainActivity extends BaseSecureActivity {
         return false;
     }
 
-    /**
-     * 展示删除撤销 Snackbar：10 秒内点击"撤销"则把账号重新插入回库。
-     *
-     * 注意：账号 id 在新插入时会由 SQLite 重新分配，sortOrder 会回到当前末尾，
-     * 与原条目的相对顺序可能略有差异；不持久化"原 sortOrder"是为了保持
-     * Repository 层结构尽可能简单，且对用户体验没有可感知影响。
-     */
-    private void showUndoDeleteSnackbar(OtpAccount snapshot) {
-        if (snapshot == null) {
-            return;
-        }
-        View root = findViewById(R.id.root_main);
-        if (root == null) {
-            return;
-        }
-        String title = snapshot.displayLabel();
-        Snackbar bar = Snackbar.make(root,
-                getString(R.string.delete_done_with_undo, title),
-                10_000);
-        bar.setAction(R.string.action_undo, v -> {
-            try {
-                // id 字段重置：让 SQLite 重新分配，避免主键冲突。
-                snapshot.id = 0;
-                OtpRepository.get(this).insert(snapshot);
-                reload();
-            } catch (Exception e) {
-                Toast.makeText(this,
-                        getString(R.string.error_save_failed, e.getMessage()),
-                        Toast.LENGTH_SHORT).show();
-            }
-        });
-        bar.show();
-    }
-
     private void showAddSheet() {
         new AlertDialog.Builder(this)
                 .setTitle(R.string.title_add_account)
@@ -534,100 +502,6 @@ public class MainActivity extends BaseSecureActivity {
     }
 
     /**
-     * 长按弹出条目操作菜单：编辑 / 置顶（或取消置顶）/ 删除。
-     * 删除入口与左滑删除走同一个 confirm + Snackbar 撤销路径，避免不一致。
-     */
-    private void onItemLong(OtpAccount acc) {
-        CharSequence[] items = new CharSequence[]{
-                getString(R.string.action_edit),
-                getString(acc.favorite
-                        ? R.string.action_unpin
-                        : R.string.action_pin),
-                getString(R.string.action_delete)
-        };
-        new AlertDialog.Builder(this)
-                .setTitle(acc.displayLabel())
-                .setItems(items, (d, which) -> {
-                    if (which == 0) {
-                        showEditDialog(acc);
-                    } else if (which == 1) {
-                        toggleFavorite(acc);
-                    } else if (which == 2) {
-                        confirmDelete(acc);
-                    }
-                })
-                .setNegativeButton(R.string.dialog_cancel, null)
-                .show();
-    }
-
-    /** 切换收藏置顶状态：仅写一列 + 重新加载列表，不影响 secret 路径。 */
-    private void toggleFavorite(OtpAccount acc) {
-        boolean target = !acc.favorite;
-        try {
-            OtpRepository.get(this).setFavorite(acc.id, target);
-            acc.favorite = target;
-            reload();
-        } catch (Exception e) {
-            Toast.makeText(this,
-                    getString(R.string.error_save_failed, e.getMessage()),
-                    Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    /** 提取出来的"二次确认 + 软删除 + Snackbar 撤销"流程，长按和滑动共用。 */
-    private void confirmDelete(OtpAccount acc) {
-        new AlertDialog.Builder(this)
-                .setTitle(acc.displayLabel())
-                .setMessage(R.string.confirm_delete)
-                .setNegativeButton(R.string.dialog_cancel, null)
-                .setPositiveButton(R.string.dialog_ok, (d, w) -> {
-                    OtpRepository.get(this).delete(acc.id);
-                    reload();
-                    showUndoDeleteSnackbar(acc);
-                })
-                .show();
-    }
-
-    /** 长按改为编辑：仅允许修改 issuer / account，不动 secret。 */
-    private void showEditDialog(OtpAccount acc) {
-        View dialogView = LayoutInflater.from(this)
-                .inflate(R.layout.dialog_edit_account, null, false);
-        final EditText etIssuer = dialogView.findViewById(R.id.et_edit_issuer);
-        final EditText etAccount = dialogView.findViewById(R.id.et_edit_account);
-        etIssuer.setText(acc.issuer == null ? "" : acc.issuer);
-        etAccount.setText(acc.account == null ? "" : acc.account);
-
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.title_edit_account)
-                .setView(dialogView)
-                .setNegativeButton(R.string.action_cancel, null)
-                .setPositiveButton(R.string.action_save, (d, w) -> {
-                    String newIssuer = etIssuer.getText() == null
-                            ? "" : etIssuer.getText().toString().trim();
-                    String newAccount = etAccount.getText() == null
-                            ? "" : etAccount.getText().toString().trim();
-                    if (TextUtils.isEmpty(newIssuer)
-                            && TextUtils.isEmpty(newAccount)) {
-                        Toast.makeText(this, R.string.error_required,
-                                Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    acc.issuer = newIssuer;
-                    acc.account = newAccount;
-                    try {
-                        OtpRepository.get(this).update(acc);
-                        reload();
-                    } catch (Exception e) {
-                        Toast.makeText(this,
-                                getString(R.string.error_save_failed,
-                                        e.getMessage()),
-                                Toast.LENGTH_SHORT).show();
-                    }
-                })
-                .show();
-    }
-
-    /**
      * 为列表绑定拖拽排序 + 左滑删除。
      * 实际的视觉绘制 / 状态管理 / 排序持久化下沉到 {@link SwipeAndDragCallback}，
      * 本方法只构造 Callback 并 attach 到 RecyclerView。
@@ -684,7 +558,7 @@ public class MainActivity extends BaseSecureActivity {
                     .setPositiveButton(R.string.dialog_ok, (d, w) -> {
                         OtpRepository.get(MainActivity.this).delete(acc.id);
                         reload();
-                        showUndoDeleteSnackbar(acc);
+                        accountActions_.showUndoSnackbar(acc);
                     })
                     .show();
         }
