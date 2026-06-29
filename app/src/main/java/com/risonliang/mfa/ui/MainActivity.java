@@ -4,12 +4,6 @@
 package com.risonliang.mfa.ui;
 
 import android.content.Intent;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.Rect;
-import android.graphics.RectF;
-import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -18,7 +12,6 @@ import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.Log;
-import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
@@ -636,196 +629,64 @@ public class MainActivity extends BaseSecureActivity {
 
     /**
      * 为列表绑定拖拽排序 + 左滑删除。
-     * 拖拽：长按 item 在豆点区可上下拖动调整顺序，抬手时事务批量写回 sortOrder。
-     * 为避免搜索过滤态下 data_ 只是 allData_ 的子集造成原序错乱，
-     * 仅在无搜索词时启用拖动。
+     * 实际的视觉绘制 / 状态管理 / 排序持久化下沉到 {@link SwipeAndDragCallback}，
+     * 本方法只构造 Callback 并 attach 到 RecyclerView。
      */
     private void attachSwipeToDelete() {
-        ItemTouchHelper.Callback cb = new ItemTouchHelper.Callback() {
-            private final Paint bgPaint_ = new Paint(Paint.ANTI_ALIAS_FLAG);
-            private final Paint textPaint_ = new Paint(Paint.ANTI_ALIAS_FLAG);
-            private final Rect textBounds_ = new Rect();
-            private final RectF rectF_ = new RectF();
-            private final String label_ = getString(R.string.action_delete);
-            private final float textPx_ = TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_SP, 16f,
-                    getResources().getDisplayMetrics());
-            private final int padPx_ = (int) TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP, 24f,
-                    getResources().getDisplayMetrics());
-            // 与 item_otp.xml 中 CardView 的视觉参数保持一致。
-            private final float cornerPx_ = TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP, 12f,
-                    getResources().getDisplayMetrics());
-            private final int marginHPx_ = (int) TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP, 12f,
-                    getResources().getDisplayMetrics());
-            private final int marginVPx_ = (int) TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP, 6f,
-                    getResources().getDisplayMetrics());
-            /** 本次拖拽是否发生过位置变化，决定 clearView 是否需要落库。 */
-            private boolean dragMoved_;
-
-            {
-                bgPaint_.setColor(androidx.core.content.ContextCompat.getColor(
-                        MainActivity.this, R.color.progress_warn));
-                bgPaint_.setStyle(Paint.Style.FILL);
-                textPaint_.setColor(Color.WHITE);
-                textPaint_.setTextSize(textPx_);
-                textPaint_.setTypeface(Typeface.DEFAULT_BOLD);
-            }
-
-            @Override
-            public int getMovementFlags(@NonNull RecyclerView rv,
-                                        @NonNull RecyclerView.ViewHolder vh) {
-                // 搜索过滤态下仅保留左滑删除；仅在全量列表下才启用拖拽。
-                int swipe = ItemTouchHelper.LEFT;
-                int drag = currentQuery_.isEmpty()
-                        ? (ItemTouchHelper.UP | ItemTouchHelper.DOWN) : 0;
-                return makeMovementFlags(drag, swipe);
-            }
-
-            @Override
-            public boolean isLongPressDragEnabled() {
-                // 仅全量列表下才允许长按发起拖动，避免过滤态详顺序错乱。
-                return currentQuery_.isEmpty();
-            }
-
-            @Override
-            public boolean isItemViewSwipeEnabled() {
-                return true;
-            }
-
-            @Override
-            public boolean onMove(@NonNull RecyclerView rv,
-                                  @NonNull RecyclerView.ViewHolder vh,
-                                  @NonNull RecyclerView.ViewHolder target) {
-                int from = vh.getBindingAdapterPosition();
-                int to = target.getBindingAdapterPosition();
-                if (from < 0 || to < 0
-                        || from >= data_.size() || to >= data_.size()) {
-                    return false;
-                }
-                // 收藏分区隔离：仅允许在同一 favorite 状态内拖动，避免出现
-                // "把一个非收藏拖到收藏区然后顺序错乱"的视觉/语义不一致。
-                // 用户想跨区移动应通过长按菜单"取消置顶"先改变分区。
-                if (data_.get(from).favorite != data_.get(to).favorite) {
-                    return false;
-                }
-                // 同步调整 data_ 与 allData_（两者在未过滤时为同顺序，但不是同一个
-                // List 引用），其中主要列表是 data_；ClearView 时按 data_ 顺序写回 DB。
-                java.util.Collections.swap(data_, from, to);
-                if (from < allData_.size() && to < allData_.size()) {
-                    java.util.Collections.swap(allData_, from, to);
-                }
-                adapter_.notifyItemMoved(from, to);
-                dragMoved_ = true;
-                return true;
-            }
-
-            @Override
-            public void onSelectedChanged(
-                    @androidx.annotation.Nullable RecyclerView.ViewHolder vh,
-                    int actionState) {
-                super.onSelectedChanged(vh, actionState);
-                if (actionState == ItemTouchHelper.ACTION_STATE_DRAG
-                        && vh != null) {
-                    // 拖拽中轻微隐去阴影提示“拿起”状态；在 clearView 中复原。
-                    vh.itemView.setAlpha(0.85f);
-                    vh.itemView.setScaleX(1.02f);
-                    vh.itemView.setScaleY(1.02f);
-                }
-            }
-
-            @Override
-            public void clearView(@NonNull RecyclerView rv,
-                                  @NonNull RecyclerView.ViewHolder vh) {
-                super.clearView(rv, vh);
-                vh.itemView.setAlpha(1f);
-                vh.itemView.setScaleX(1f);
-                vh.itemView.setScaleY(1f);
-                if (!dragMoved_) {
-                    return;
-                }
-                dragMoved_ = false;
-                // 抓一份 id 快照后用后台线程事务批量更新，避免阻塞主线程。
-                long[] orderedIds = new long[data_.size()];
-                for (int i = 0; i < data_.size(); i++) {
-                    orderedIds[i] = data_.get(i).id;
-                }
-                bgExecutor_.execute(() -> {
-                    try {
-                        OtpRepository.get(MainActivity.this)
-                                .updateSortOrder(orderedIds);
-                    } catch (Exception e) {
-                        Log.w(kLogTag, "persist sortOrder failed", e);
-                    }
-                });
-            }
-
-            @Override
-            public void onSwiped(@NonNull RecyclerView.ViewHolder vh,
-                                 int direction) {
-                int pos = vh.getBindingAdapterPosition();
-                if (pos < 0 || pos >= data_.size()) {
-                    return;
-                }
-                OtpAccount acc = data_.get(pos);
-                new AlertDialog.Builder(MainActivity.this)
-                        .setTitle(acc.displayLabel())
-                        .setMessage(R.string.confirm_delete)
-                        .setNegativeButton(R.string.dialog_cancel,
-                                (d, w) -> adapter_.notifyItemChanged(pos))
-                        .setOnCancelListener(
-                                d -> adapter_.notifyItemChanged(pos))
-                        .setPositiveButton(R.string.dialog_ok, (d, w) -> {
-                            // 软删除：先记住完整 OtpAccount（含 secret 明文）以便撤销，
-                            // 再从数据库中删除。Snackbar 10s 内点击"撤销"则重新插入。
-                            OtpAccount snapshot = acc;
-                            OtpRepository.get(MainActivity.this)
-                                    .delete(snapshot.id);
-                            reload();
-                            showUndoDeleteSnackbar(snapshot);
-                        })
-                        .show();
-            }
-
-            @Override
-            public void onChildDraw(@NonNull Canvas c,
-                                    @NonNull RecyclerView rv,
-                                    @NonNull RecyclerView.ViewHolder vh,
-                                    float dX, float dY,
-                                    int actionState, boolean isCurrentlyActive) {
-                View item = vh.itemView;
-                if (dX < 0) {
-                    // 与 CardView 的 marginHorizontal=12dp / marginVertical=6dp 对齐
-                    float top = item.getTop() + marginVPx_;
-                    float bottom = item.getBottom() - marginVPx_;
-                    float right = item.getRight() - marginHPx_;
-                    float left = right + dX;
-                    // 防止滑动距离很小时，left 超过 right 造成绘制异常
-                    if (left > right) {
-                        left = right;
-                    }
-                    rectF_.set(left, top, right, bottom);
-                    c.drawRoundRect(rectF_, cornerPx_, cornerPx_, bgPaint_);
-
-                    textPaint_.getTextBounds(label_, 0, label_.length(),
-                            textBounds_);
-                    // 仅在背景宽度足以容纳文字时绘制，避免越界压在卡片上
-                    float bgWidth = right - left;
-                    float textWidth = textBounds_.width();
-                    if (bgWidth >= textWidth + padPx_) {
-                        float ty = top + (bottom - top + textBounds_.height())
-                                / 2f;
-                        float tx = right - padPx_ - textWidth;
-                        c.drawText(label_, tx, ty, textPaint_);
-                    }
-                }
-                super.onChildDraw(c, rv, vh, dX, dY,
-                        actionState, isCurrentlyActive);
-            }
-        };
+        SwipeAndDragCallback cb = new SwipeAndDragCallback(this, swipeHost_);
         new ItemTouchHelper(cb).attachToRecyclerView(rvAccounts_);
     }
+
+    /**
+     * SwipeAndDragCallback 的 Host 实现：把 Activity 内的列表 / Adapter /
+     * 后台线程 / 仓库 暴露给 Callback，并把"用户左滑请求删除"路由到带
+     * 二次确认 + Snackbar 撤销 的标准删除流程。
+     */
+    private final SwipeAndDragCallback.Host swipeHost_ = new SwipeAndDragCallback.Host() {
+        @Override
+        @NonNull
+        public List<OtpAccount> getDataList() { return data_; }
+
+        @Override
+        @NonNull
+        public List<OtpAccount> getAllDataList() { return allData_; }
+
+        @Override
+        public boolean isFilterActive() { return !currentQuery_.isEmpty(); }
+
+        @Override
+        @NonNull
+        public RecyclerView.Adapter<?> getAdapter() { return adapter_; }
+
+        @Override
+        @NonNull
+        public java.util.concurrent.Executor getBackgroundExecutor() {
+            return bgExecutor_;
+        }
+
+        @Override
+        @NonNull
+        public OtpRepository getRepository() {
+            return OtpRepository.get(MainActivity.this);
+        }
+
+        @Override
+        public void onItemSwipedToDelete(@NonNull OtpAccount acc, int adapterPosition) {
+            // 与原匿名内部类等价的二次确认逻辑：取消 / 关闭对话框时把被滑开的
+            // 卡片复位（notifyItemChanged），确认删除则走 软删除 + Snackbar 撤销。
+            new AlertDialog.Builder(MainActivity.this)
+                    .setTitle(acc.displayLabel())
+                    .setMessage(R.string.confirm_delete)
+                    .setNegativeButton(R.string.dialog_cancel,
+                            (d, w) -> adapter_.notifyItemChanged(adapterPosition))
+                    .setOnCancelListener(
+                            d -> adapter_.notifyItemChanged(adapterPosition))
+                    .setPositiveButton(R.string.dialog_ok, (d, w) -> {
+                        OtpRepository.get(MainActivity.this).delete(acc.id);
+                        reload();
+                        showUndoDeleteSnackbar(acc);
+                    })
+                    .show();
+        }
+    };
 }
