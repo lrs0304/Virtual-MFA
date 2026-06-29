@@ -53,8 +53,8 @@
 
     <!-- 二维码失败处理：图片编辑页 -->
     <string name="title_image_edit">重新识别</string>
-    <string name="image_edit_hint_zoom">缩放模式：双指缩放调整二维码位置，对准后点击「重新识别」</string>
-    <string name="image_edit_hint_adjust">调整模式：拖动曲线/滑块去除噪点，调好后点击「重新识别」</string>
+    <string name="image_edit_hint_zoom">缩放模式：双指缩放调整二维码位置，然后「重新识别」</string>
+    <string name="image_edit_hint_adjust">调整模式：拖动曲线/滑块去除噪点，然后「重新识别」</string>
     <string name="action_retry_decode">重新识别</string>
     <string name="action_mode_zoom">缩放</string>
     <string name="action_mode_adjust">调整</string>

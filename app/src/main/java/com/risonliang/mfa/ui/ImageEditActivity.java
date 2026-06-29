@@ -308,7 +308,8 @@ public class ImageEditActivity extends AppCompatActivity {
                 : R.string.image_edit_hint_adjust);
         if (zoom) {
             // 切回缩放模式：展示原图，丢弃调整后的中间结果，但保留滑块状态
-            // 以便用户切回调整模式时不丢失参数。
+            // 以便用户切回调整模式时不丢失参数。同时保留手势矩阵，使得
+            // 用户在缩放模式下调好的缩放/平移在两个 tab 间共享。
             if (originalBitmap_ != null) {
                 if (currentBitmap_ != null
                         && currentBitmap_ != originalBitmap_
@@ -316,12 +317,35 @@ public class ImageEditActivity extends AppCompatActivity {
                     currentBitmap_.recycle();
                 }
                 currentBitmap_ = originalBitmap_;
-                zoomImage_.setImageBitmap(originalBitmap_);
+                zoomImage_.setImageBitmapKeepTransform(originalBitmap_);
             }
         } else {
-            // 切到调整模式：立即用当前参数渲染一遍。
-            schedulePreview();
+            // 切到调整模式：若参数都是默认值，直接复用原图避免空转一次 LUT；
+            // 否则按当前参数渲染一遍。无论哪种路径，都不会重置手势矩阵。
+            if (isDefaultParams(params_)) {
+                if (originalBitmap_ != null) {
+                    if (currentBitmap_ != null
+                            && currentBitmap_ != originalBitmap_
+                            && !currentBitmap_.isRecycled()) {
+                        currentBitmap_.recycle();
+                    }
+                    currentBitmap_ = originalBitmap_;
+                    zoomImage_.setImageBitmapKeepTransform(originalBitmap_);
+                }
+            } else {
+                schedulePreview();
+            }
         }
+    }
+
+    /** 判断调整参数是否全为初始默认值。 */
+    private static boolean isDefaultParams(BitmapAdjuster.Params p) {
+        return p.brightnessR == 0
+                && p.brightnessG == 0
+                && p.brightnessB == 0
+                && Math.abs(p.contrast - 1.0f) < 1e-4f
+                && !p.invert
+                && p.threshold < 0;
     }
 
     /** 节流：合并连续 SeekBar 回调，最后一次生效。 */
@@ -358,7 +382,7 @@ public class ImageEditActivity extends AppCompatActivity {
                     currentBitmap_.recycle();
                 }
                 currentBitmap_ = result;
-                zoomImage_.setImageBitmap(result);
+                zoomImage_.setImageBitmapKeepTransform(result);
             });
         });
     }

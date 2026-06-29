@@ -122,6 +122,29 @@ public class ZoomableImageView extends AppCompatImageView {
         applyAndConstrain();
     }
 
+    /**
+     * 替换显示位图但保留当前的缩放/平移状态。
+     *
+     * <p>使用场景：上层在同一张原图上做"调整模式 LUT 渲染"或"缩放模式回原图"切换，
+     * 需要把渲染结果回写到控件、又不希望丢失用户已经做过的双指缩放/平移。
+     *
+     * <p>前置约束：调用方需保证新位图与原位图尺寸一致（同一张原图渲染出来的副本
+     * 均满足），否则 baseMatrix 不会重算，可能出现轻微偏移。
+     */
+    public void setImageBitmapKeepTransform(@Nullable Bitmap bm) {
+        super.setImageBitmap(bm);
+        boolean sameSize = sourceBitmap_ != null && bm != null
+                && sourceBitmap_.getWidth() == bm.getWidth()
+                && sourceBitmap_.getHeight() == bm.getHeight();
+        sourceBitmap_ = bm;
+        if (!sameSize) {
+            // 尺寸变化 → 必须重算 base，并且原有手势矩阵已无意义，回退到全图。
+            supportMatrix_.reset();
+            recomputeBaseMatrix();
+        }
+        applyAndConstrain();
+    }
+
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
