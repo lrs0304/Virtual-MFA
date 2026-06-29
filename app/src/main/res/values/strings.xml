@@ -4,7 +4,6 @@
     <!-- 标题 -->
     <string name="title_main">我的验证码</string>
     <string name="title_add_manual">手动添加</string>
-    <string name="title_scan">扫描二维码</string>
     <string name="title_import_export">导入 / 导出</string>
 
     <!-- 主页 -->
@@ -17,7 +16,6 @@
     <string name="action_clear_search">清除搜索</string>
     <string name="empty_search_tip">没有找到匹配 \"%1$s\" 的账号</string>
     <string name="fmt_next_code">下一码 %1$s</string>
-    <string name="copied">验证码已复制</string>
     <string name="copied_with_clear">验证码已复制（30 秒后自动清空剪贴板）</string>
     <string name="fmt_remaining_seconds">%1$ds</string>
     <string name="title_add_account">添加账号</string>
@@ -40,7 +38,6 @@
 
     <!-- 扫码 -->
     <string name="scan_prompt">将二维码对准方框</string>
-    <string name="error_qr_invalid">无效的 OTP 二维码</string>
     <string name="error_qr_not_found">未在图片中识别到二维码</string>
     <string name="error_image_read">无法读取所选图片</string>
     <string name="decoding_image">正在识别图片中的二维码…</string>
@@ -176,4 +173,20 @@
     <string name="settings_grace_60">1 分钟</string>
     <string name="settings_grace_300">5 分钟</string>
     <string name="settings_offline_tip">所有偏好仅保存在本机，零联网。</string>
+
+    <!-- 关于页 -->
+    <string name="title_about">关于</string>
+    <string name="action_about">关于</string>
+    <string name="about_section_intro">应用介绍</string>
+    <string name="about_section_opensource">开源</string>
+    <string name="about_intro_paragraph">MFA 二次验证是一款完全离线的双因子（2FA）认证器。它将 Google Authenticator、Microsoft Authenticator 等同类工具的核心能力打包到一款应用中：本地生成动态验证码、本地加密保存密钥、不联网、不上报、不收集任何个人数据。
+
+所有账号信息均以 AES-256-GCM 在本机加密存储，任何人即便拷走数据库也无法解密。导入 / 导出走相同的密码派生密钥（PBKDF2 + 高轮次），方便你跨设备迁移而不必担心明文泄露。</string>
+    <string name="about_features_title">主要特性</string>
+    <string name="about_features_list">• 完全离线运行，已显式移除联网权限\n• 兼容 TOTP/HOTP，支持 SHA-1/SHA-256/SHA-512\n• 支持扫码、相册导入、Google Authenticator 迁移\n• 支持加密备份（.2fa）或 明文CSV导出\n• 应用密码 + 生物识别双因子解锁\n• 后台进入即遮罩验证码\n• 剪贴板复制后定时自动清空\n• 开源透明，欢迎审计与提 Issue</string>
+    <string name="about_github_title">GitHub 仓库</string>
+    <string name="about_donate_lead">— 如果觉得有帮助 ❤️ —</string>
+    <string name="about_donate_alipay_title">用支付宝赞赏作者</string>
+    <string name="about_donate_alipay_subtitle">支付宝账号：%1$s</string>
+    <string name="about_donate_alipay_failed">无法拉起支付宝，请先安装支付宝或更换浏览器</string>
 </resources>

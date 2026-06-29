@@ -21,4 +21,8 @@
         android:id="@+id/action_import_export"
         android:title="@string/action_import_export"
         app:showAsAction="never" />
+    <item
+        android:id="@+id/action_about"
+        android:title="@string/action_about"
+        app:showAsAction="never" />
 </menu>

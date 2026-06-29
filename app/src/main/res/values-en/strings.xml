@@ -10,7 +10,6 @@
     <!-- Titles -->
     <string name="title_main">My Codes</string>
     <string name="title_add_manual">Add Manually</string>
-    <string name="title_scan">Scan QR Code</string>
     <string name="title_import_export">Import / Export</string>
 
     <!-- Home -->
@@ -23,7 +22,6 @@
     <string name="action_clear_search">Clear search</string>
     <string name="empty_search_tip">No accounts match \"%1$s\"</string>
     <string name="fmt_next_code">Next %1$s</string>
-    <string name="copied">Code copied</string>
     <string name="copied_with_clear">Code copied (clipboard auto-clears in 30s)</string>
     <string name="fmt_remaining_seconds">%1$ds</string>
     <string name="title_add_account">Add account</string>
@@ -46,11 +44,36 @@
 
     <!-- Scan -->
     <string name="scan_prompt">Align QR code within the frame</string>
-    <string name="error_qr_invalid">Not a valid OTP QR code</string>
     <string name="error_qr_not_found">No QR code found in image</string>
     <string name="error_image_read">Cannot read selected image</string>
     <string name="decoding_image">Decoding QR code…</string>
     <string name="permission_camera_denied">Camera permission required to scan</string>
+
+    <!-- QR failure handling: content preview -->
+    <string name="title_qr_content_preview">QR Content (add failed)</string>
+    <string name="qr_content_preview_hint">This QR code is not a valid MFA configuration (otpauth) and cannot be added as an account.\nBelow is the full decoded text (%1$d characters). You may copy it and verify with other tools.</string>
+    <string name="action_copy_content">Copy content</string>
+    <string name="action_close">Close</string>
+    <string name="copied_to_clipboard">Copied to clipboard</string>
+    <string name="copy_failed">Copy failed</string>
+
+    <!-- QR failure handling: image edit -->
+    <string name="title_image_edit">Re-decode</string>
+    <string name="image_edit_hint_zoom">Zoom mode: pinch to reposition the QR code, then tap “Re-decode”.</string>
+    <string name="image_edit_hint_adjust">Adjust mode: drag the curve / sliders to reduce noise, then tap “Re-decode”.</string>
+    <string name="action_retry_decode">Re-decode</string>
+    <string name="action_mode_zoom">Zoom</string>
+    <string name="action_mode_adjust">Adjust</string>
+    <string name="action_reset_adjust">Reset</string>
+    <string name="action_invert">Invert</string>
+    <string name="action_otsu">Auto threshold</string>
+    <string name="label_contrast">Contrast</string>
+    <string name="label_threshold">Threshold</string>
+    <string name="label_brightness_r">R brightness</string>
+    <string name="label_brightness_g">G brightness</string>
+    <string name="label_brightness_b">B brightness</string>
+    <string name="msg_decoding">Decoding…</string>
+    <string name="msg_decode_still_fail">Still no QR code recognized. Please keep adjusting the image.</string>
 
     <!-- GA migration -->
     <string name="error_ga_migration_empty">No accounts found in migration QR</string>
@@ -156,4 +179,20 @@
     <string name="settings_grace_60">1 minute</string>
     <string name="settings_grace_300">5 minutes</string>
     <string name="settings_offline_tip">All preferences are stored on-device only. Zero networking.</string>
+
+    <!-- About -->
+    <string name="title_about">About</string>
+    <string name="action_about">About</string>
+    <string name="about_section_intro">Introduction</string>
+    <string name="about_section_opensource">Open Source</string>
+    <string name="about_intro_paragraph">MFA Authenticator is a fully offline two-factor (2FA) authenticator. It packs the core of tools like Google Authenticator and Microsoft Authenticator into a single app: codes generated locally, secrets encrypted locally, no networking, no telemetry, no personal data collection.
+
+All accounts are stored on-device with AES-256-GCM. Even if someone copies the database, they cannot decrypt it without your password. Import / export shares the same password-derived key (PBKDF2 with high iteration count), making cross-device migration easy and safe.</string>
+    <string name="about_features_title">Highlights</string>
+    <string name="about_features_list">• Fully offline; networking permissions are explicitly removed\n• Compatible with TOTP/HOTP, supporting SHA-1/SHA-256/SHA-512\n• Supports QR scanning, album import and batch import from Google Authenticator migration QR\n• Supports encrypted backup (.2fa) or plain CSV export\n• App password + biometric two-factor unlock\n• Codes are masked as soon as the app goes background\n• Clipboard auto-clears on a timer after copy\n• Open source and auditable — issues welcome</string>
+    <string name="about_github_title">GitHub Repository</string>
+    <string name="about_donate_lead">— If this helped you ❤️ —</string>
+    <string name="about_donate_alipay_title">Tip the author via Alipay</string>
+    <string name="about_donate_alipay_subtitle">Alipay: %1$s</string>
+    <string name="about_donate_alipay_failed">Cannot open Alipay. Please install Alipay or use another browser.</string>
 </resources>

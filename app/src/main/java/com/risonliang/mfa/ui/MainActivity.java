@@ -211,6 +211,10 @@ public class MainActivity extends BaseSecureActivity {
             startActivity(new Intent(this, ImportExportActivity.class));
             return true;
         }
+        if (id == R.id.action_about) {
+            startActivity(new Intent(this, AboutActivity.class));
+            return true;
+        }
         if (id == R.id.action_enable_pin) {
             // 防御：若 prefs 中有残留 PIN（旧版本遗留 / 异常态），先彻底清掉，
             // 确保 LockActivity 一定走 SETUP 流程而非自动弹出生物识别。

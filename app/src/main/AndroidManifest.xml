@@ -109,6 +109,12 @@
             android:exported="false"
             android:label="@string/title_image_edit"
             android:parentActivityName=".ui.MainActivity" />
+
+        <activity
+            android:name=".ui.AboutActivity"
+            android:exported="false"
+            android:label="@string/title_about"
+            android:parentActivityName=".ui.MainActivity" />
     </application>
 
 </manifest>

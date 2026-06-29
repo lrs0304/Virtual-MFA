@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    细窄、浅灰、半透明滚动条 thumb：
+    - 纯色 #66B0B0B0：约 40% 透明度的中性灰，避免在浅色背景上喧宾夺主
+    - 圆角 2dp，让滚动条看起来更精致
+    - 通过 ScrollView 的 android:scrollbarSize 控制实际宽度（3dp 左右）
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#66B0B0B0" />
+    <corners android:radius="2dp" />
+</shape>
