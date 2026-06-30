@@ -6,16 +6,27 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/bg_window"
-    android:fitsSystemWindows="true">
+    android:background="@color/brand_primary">
 
-    <androidx.appcompat.widget.Toolbar
-        android:id="@+id/toolbar"
+    <!--
+        顶部用 AppBarLayout 包裹 MaterialToolbar：AppBarLayout 自身
+        fitsSystemWindows=true 会消费 status bar inset 并把 toolbar 推到
+        状态栏下方，避免与系统状态栏叠加。与其他 Activity 保持一致写法。
+    -->
+    <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
+        android:layout_height="wrap_content"
         android:background="@color/brand_primary"
-        app:titleTextColor="@color/text_inverse"
-        app:navigationIcon="?attr/homeAsUpIndicator" />
+        android:fitsSystemWindows="true">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:title="@string/title_image_edit"
+            app:titleTextColor="@color/text_inverse"
+            app:navigationIconTint="@color/text_inverse" />
+    </com.google.android.material.appbar.AppBarLayout>
 
     <!-- 模式提示条 -->
     <TextView
@@ -64,6 +75,7 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@color/bg_window"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingHorizontal="16dp"

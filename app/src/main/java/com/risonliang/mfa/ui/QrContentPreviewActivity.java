@@ -12,9 +12,8 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
 
+import com.google.android.material.appbar.MaterialToolbar;
 import com.risonliang.mfa.R;
 
 /**
@@ -30,10 +29,10 @@ import com.risonliang.mfa.R;
  *   <li>当 MFA 服务商使用非 otpauth 自有协议时，用户能拿到原始 payload。</li>
  * </ul>
  *
- * <p>本页不写任何状态，纯展示 + 复制。安全考虑：不在 Recents 缩略图显示文本
- * （父 Activity 已设 FLAG_SECURE，本页继承策略，且 toolbar 文案不含 secret）。
+ * <p>安全：本页继承 {@link BaseSecureActivity}，自动获得 FLAG_SECURE
+ * 与"后台超时回前台触发应用锁"能力，与主活动一致；toolbar 文案不含 secret。
  */
-public class QrContentPreviewActivity extends AppCompatActivity {
+public class QrContentPreviewActivity extends BaseSecureActivity {
 
     /** Intent 中携带的原始二维码内容字符串。 */
     public static final String EXTRA_CONTENT = "qr_content";
@@ -53,7 +52,7 @@ public class QrContentPreviewActivity extends AppCompatActivity {
         setContentView(R.layout.activity_qr_content_preview);
 
         // 标题栏。
-        Toolbar tb = findViewById(R.id.toolbar);
+        MaterialToolbar tb = findViewById(R.id.toolbar);
         setSupportActionBar(tb);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);

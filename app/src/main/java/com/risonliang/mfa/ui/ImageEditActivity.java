@@ -17,9 +17,8 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
 
+import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.risonliang.mfa.R;
@@ -47,7 +46,7 @@ import java.util.concurrent.Executors;
  *
  * <p>识别失败 → 弹 Toast，留在当前页继续调整，不退出。
  */
-public class ImageEditActivity extends AppCompatActivity {
+public class ImageEditActivity extends BaseSecureActivity {
 
     private static final String kLogTag = "MFA-ImageEdit";
 
@@ -116,7 +115,7 @@ public class ImageEditActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_image_edit);
 
-        Toolbar tb = findViewById(R.id.toolbar);
+        MaterialToolbar tb = findViewById(R.id.toolbar);
         setSupportActionBar(tb);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
