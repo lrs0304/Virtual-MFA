@@ -23,6 +23,7 @@ public final class UiPreferences {
     private static final String kKeyHideCodes = "hide_codes";
     private static final String kKeyShowNextCode = "show_next_code";
     private static final String kKeyAutoLockGraceSec = "auto_lock_grace_sec";
+    private static final String kKeyShowInvalidQrPreview = "show_invalid_qr_preview";
 
     private static volatile UiPreferences sInstance;
 
@@ -79,5 +80,21 @@ public final class UiPreferences {
 
     public void setAutoLockGraceSec(int seconds) {
         prefs_.edit().putInt(kKeyAutoLockGraceSec, Math.max(0, seconds)).apply();
+    }
+
+    /**
+     * 扫码 / 相册导入识别到二维码但内容不是合法 MFA 配置时，是否跳转到
+     * {@link QrContentPreviewActivity} 展示原文 + 一键复制。
+     *
+     * <p>默认 {@code true}：让用户能看到原文判断是否选错图、是否为非
+     * otpauth 的私有协议；如果只想要"识别失败一笔带过"，可在设置中关闭，
+     * 关闭后两条链路都仅以 Toast 提示，不再跳页。
+     */
+    public boolean isShowInvalidQrPreview() {
+        return prefs_.getBoolean(kKeyShowInvalidQrPreview, true);
+    }
+
+    public void setShowInvalidQrPreview(boolean enabled) {
+        prefs_.edit().putBoolean(kKeyShowInvalidQrPreview, enabled).apply();
     }
 }

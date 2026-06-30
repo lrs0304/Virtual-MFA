@@ -438,14 +438,19 @@ public class MainActivity extends BaseSecureActivity {
      *   <li>图片编辑页（{@link ImageEditActivity}）重识别成功后内容仍非 MFA。</li>
      * </ul>
      *
-     * <p>当前实现：先 Toast 提示一句，再跳转 {@link QrContentPreviewActivity}
-     * 让用户看到原文并可一键复制。Toast 与预览页文案语义独立——Toast 用于在
-     * 跳转动效中给用户即时反馈"为何跳到了新页"，预览页负责承载内容查证流程。
+     * <p>受设置项 {@link UiPreferences#isShowInvalidQrPreview()} 控制：
+     * <ul>
+     *   <li>开（默认）：Toast 提示 + 跳转 {@link QrContentPreviewActivity}
+     *       让用户看到原文并可一键复制。</li>
+     *   <li>关：仅 Toast 提示，不跳页。适合"识别失败一笔带过"的轻量体验。</li>
+     * </ul>
      */
     private void handleInvalidQr(@NonNull String content) {
         Toast.makeText(this, R.string.error_qr_not_mfa,
                 Toast.LENGTH_SHORT).show();
-        startActivity(QrContentPreviewActivity.newIntent(this, content));
+        if (UiPreferences.get(this).isShowInvalidQrPreview()) {
+            startActivity(QrContentPreviewActivity.newIntent(this, content));
+        }
     }
 
     /** 处理 Google Authenticator 迁移二维码，批量导入。 */

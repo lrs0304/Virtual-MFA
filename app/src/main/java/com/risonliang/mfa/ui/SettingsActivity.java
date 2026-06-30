@@ -27,6 +27,7 @@ public final class SettingsActivity extends BaseSecureActivity {
 
     private SwitchMaterial swHideCodes_;
     private SwitchMaterial swShowNextCode_;
+    private SwitchMaterial swShowInvalidQrPreview_;
     private RadioGroup rgGrace_;
 
     @Override
@@ -45,6 +46,7 @@ public final class SettingsActivity extends BaseSecureActivity {
 
         swHideCodes_ = findViewById(R.id.sw_hide_codes);
         swShowNextCode_ = findViewById(R.id.sw_show_next_code);
+        swShowInvalidQrPreview_ = findViewById(R.id.sw_show_invalid_qr_preview);
         rgGrace_ = findViewById(R.id.rg_grace);
 
         UiPreferences prefs = UiPreferences.get(this);
@@ -57,6 +59,10 @@ public final class SettingsActivity extends BaseSecureActivity {
         swShowNextCode_.setChecked(prefs.isShowNextCode());
         swShowNextCode_.setOnCheckedChangeListener((btn, checked) ->
                 UiPreferences.get(this).setShowNextCode(checked));
+
+        swShowInvalidQrPreview_.setChecked(prefs.isShowInvalidQrPreview());
+        swShowInvalidQrPreview_.setOnCheckedChangeListener((btn, checked) ->
+                UiPreferences.get(this).setShowInvalidQrPreview(checked));
 
         int currentGrace = prefs.getAutoLockGraceSec();
         int checkedId = mapGraceToRadioId(currentGrace);

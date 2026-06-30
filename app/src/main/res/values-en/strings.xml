@@ -172,6 +172,8 @@
     <string name="settings_hide_codes_summary">List items show a mask by default; tap an account to reveal the code for 5 seconds, reducing shoulder-surfing risk.</string>
     <string name="settings_show_next_title">Preview next code when ≤5s left</string>
     <string name="settings_show_next_summary">Reveal the upcoming code right before rollover so a paste does not expire instantly.</string>
+    <string name="settings_show_invalid_qr_preview_title">Show preview for invalid QR codes</string>
+    <string name="settings_show_invalid_qr_preview_summary">When scanning or importing a QR that is not a MFA configuration, open a preview page with the decoded text so you can copy and verify it. Turn off to only show a brief toast.</string>
     <string name="settings_grace_title">Auto-lock grace period</string>
     <string name="settings_grace_summary">After the app goes to background for this long, re-unlock is required. Longer = more convenient, less secure.</string>
     <string name="settings_grace_0">Lock immediately (recommended, strictest)</string>
