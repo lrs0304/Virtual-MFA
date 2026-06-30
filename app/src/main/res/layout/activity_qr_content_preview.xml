@@ -41,20 +41,33 @@
         android:paddingVertical="12dp"
         tools:text="二维码内容不符合 MFA 规范" />
 
+    <!--
+        内容区 + 底部按钮区共用 bg_card 白底，避免 ScrollView 灰底透过
+        圆角弧外区域形成"卡片四角灰边"的视觉错觉。失败提示条已经用了
+        独立的浅红色背景做分区。
+
+        内容卡片用一个带 card_outline 背景的容器实现描边效果：背景与
+        外层 ScrollView 同为 bg_card 白色，描边来自 drawable 自身，
+        圆角外侧不会再透出 bg_window 灰底。
+    -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="@color/bg_window"
+        android:background="@color/bg_card"
+        android:padding="16dp"
+        android:clipToPadding="false"
         android:fillViewport="true"
-        android:padding="16dp">
+        android:scrollbarSize="3dp"
+        android:scrollbarThumbVertical="@drawable/scrollbar_thumb_thin"
+        android:scrollbarStyle="outsideOverlay"
+        android:scrollbarFadeDuration="500"
+        android:scrollbarDefaultDelayBeforeFade="800">
 
-        <com.google.android.material.card.MaterialCardView
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="2dp"
-            app:cardBackgroundColor="@color/bg_card">
+            android:background="@drawable/card_outline">
 
             <TextView
                 android:id="@+id/tv_content"
@@ -68,14 +81,14 @@
                 android:lineSpacingExtra="2dp"
                 tools:text="otpauth://totp/..." />
 
-        </com.google.android.material.card.MaterialCardView>
+        </FrameLayout>
 
     </ScrollView>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/bg_window"
+        android:background="@color/bg_card"
         android:orientation="horizontal"
         android:padding="16dp"
         android:gravity="end">

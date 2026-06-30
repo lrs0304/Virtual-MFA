@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    白底 + 1dp 灰色描边 + 12dp 圆角的卡片背景。
+    用于 QrContentPreviewActivity 等需要"轻量分区"但不希望卡片外侧
+    出现 bg_window 灰带的页面：把这个 drawable 设为容器 background，
+    外层与容器同为 bg_card 白色，圆角外侧不会再透出底色差。
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/bg_card" />
+    <stroke
+        android:width="1dp"
+        android:color="@color/divider" />
+    <corners android:radius="12dp" />
+</shape>
