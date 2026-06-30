@@ -45,6 +45,7 @@
     <!-- Scan -->
     <string name="scan_prompt">Align QR code within the frame</string>
     <string name="error_qr_not_found">No QR code found in image</string>
+    <string name="error_qr_not_mfa">This QR code is not a valid MFA configuration</string>
     <string name="error_image_read">Cannot read selected image</string>
     <string name="decoding_image">Decoding QR code…</string>
     <string name="permission_camera_denied">Camera permission required to scan</string>

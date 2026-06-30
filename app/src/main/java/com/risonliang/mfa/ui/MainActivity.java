@@ -401,9 +401,9 @@ public class MainActivity extends BaseSecureActivity {
         if (acc == null) {
             Log.w(kLogTag, "OtpUriParser.parse returned null, prefix="
                     + AlbumQrDecoder.safeSchemePrefix(content));
-            // 不再仅 Toast 草草了事：把原文塞进预览页让用户看到全文 + 一键复制。
-            // 这是"识别到了二维码但内容不是 MFA 规范"的兜底入口。
-            startActivity(QrContentPreviewActivity.newIntent(this, content));
+            // 识别到了二维码但内容不是合法的 MFA otpauth：
+            // 走统一的"非法二维码"分支处理，覆盖扫码 + 相册导入两条链路。
+            handleInvalidQr(content);
             return;
         }
         try {
@@ -425,6 +425,27 @@ public class MainActivity extends BaseSecureActivity {
                     getString(R.string.error_save_failed, e.getMessage()),
                     Toast.LENGTH_SHORT).show();
         }
+    }
+
+    /**
+     * 统一处理"识别到了二维码但内容不是合法 MFA 配置"的分支。
+     *
+     * <p>触发场景：
+     * <ul>
+     *   <li>扫码（{@link ScanActivity}）回传的 raw 字符串，{@link OtpUriParser}
+     *       解析返回 null；</li>
+     *   <li>相册导入（{@link AlbumQrDecoder}）SUCCESS 路径上同样的解析失败；</li>
+     *   <li>图片编辑页（{@link ImageEditActivity}）重识别成功后内容仍非 MFA。</li>
+     * </ul>
+     *
+     * <p>当前实现：先 Toast 提示一句，再跳转 {@link QrContentPreviewActivity}
+     * 让用户看到原文并可一键复制。Toast 与预览页文案语义独立——Toast 用于在
+     * 跳转动效中给用户即时反馈"为何跳到了新页"，预览页负责承载内容查证流程。
+     */
+    private void handleInvalidQr(@NonNull String content) {
+        Toast.makeText(this, R.string.error_qr_not_mfa,
+                Toast.LENGTH_SHORT).show();
+        startActivity(QrContentPreviewActivity.newIntent(this, content));
     }
 
     /** 处理 Google Authenticator 迁移二维码，批量导入。 */
