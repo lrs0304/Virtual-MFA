@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    深色主题颜色覆写。
+
+    覆写范围：
+      1) 页面承载色 / 文字色 / 分隔线（保证暗底高可读性）；
+      2) 提示条配色（深底亮字）；
+      3) 品牌色 brand_primary / brand_primary_dark：浅色模式下的 Material
+         Blue 700（#1976D2）在深色窗体上大面积铺 AppBar 时偏亮、偏饱和，
+         视觉上会"挖洞"。深色版本下调到 Blue 900 附近的暗化色（#14375F），
+         保持同色相但明度砍半，融入暗色界面更平稳。
+
+    保持不变：
+      brand_accent / brand_warn / progress_*：功能/告警语义色，跨主题一致
+      可以减少认知负担。
+
+    深色调色方案参考 Material 3 dark surface tier:
+      bg_window  = #121212  (surface, 默认应用窗口背景)
+      bg_card    = #1E1E1E  (surface container low, 卡片承载)
+      divider    = #383838  (outline variant)
+      text_primary  = #ECECEC  (on-surface, 高强对比)
+      text_secondary= #9E9E9E  (on-surface-variant)
+-->
+<resources>
+    <!-- 品牌色暗化版：色相不变（仍是蓝），明度从 ~56% 降到 ~21%，
+         在 #121212 暗窗上做 AppBar 大色块不再扎眼。 -->
+    <color name="brand_primary">#14375F</color>
+    <color name="brand_primary_dark">#0B2440</color>
+
+    <!-- 品牌色文本变体：暗底上把文字色提亮，保持 4.5:1 以上对比度。
+         #64B5F6 是 Material Blue 300，在 #121212 上对比度约 8:1。 -->
+    <color name="brand_primary_text">#64B5F6</color>
+
+    <color name="bg_window">#121212</color>
+    <color name="bg_card">#1E1E1E</color>
+
+    <color name="text_primary">#ECECEC</color>
+    <color name="text_secondary">#9E9E9E</color>
+
+    <color name="divider">#383838</color>
+
+    <!-- 进度条轨道在暗底上略深一点的灰，避免轨道太亮抢戏 -->
+    <color name="progress_track">#2A2A2A</color>
+
+    <!-- 提示条配色：深底 + 亮字，跟暗色界面整体一致 -->
+    <color name="hint_bg_error">#3D1A1B</color>
+    <color name="hint_text_error">#FF8A80</color>
+    <color name="hint_bg_info">#2E2A1A</color>
+    <color name="hint_text_info">#FFD27F</color>
+</resources>

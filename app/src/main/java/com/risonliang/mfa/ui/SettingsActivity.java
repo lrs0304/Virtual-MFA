@@ -28,6 +28,7 @@ public final class SettingsActivity extends BaseSecureActivity {
     private SwitchMaterial swHideCodes_;
     private SwitchMaterial swShowNextCode_;
     private SwitchMaterial swShowInvalidQrPreview_;
+    private SwitchMaterial swFollowSystemDark_;
     private RadioGroup rgGrace_;
 
     @Override
@@ -47,6 +48,7 @@ public final class SettingsActivity extends BaseSecureActivity {
         swHideCodes_ = findViewById(R.id.sw_hide_codes);
         swShowNextCode_ = findViewById(R.id.sw_show_next_code);
         swShowInvalidQrPreview_ = findViewById(R.id.sw_show_invalid_qr_preview);
+        swFollowSystemDark_ = findViewById(R.id.sw_follow_system_dark);
         rgGrace_ = findViewById(R.id.rg_grace);
 
         UiPreferences prefs = UiPreferences.get(this);
@@ -63,6 +65,13 @@ public final class SettingsActivity extends BaseSecureActivity {
         swShowInvalidQrPreview_.setChecked(prefs.isShowInvalidQrPreview());
         swShowInvalidQrPreview_.setOnCheckedChangeListener((btn, checked) ->
                 UiPreferences.get(this).setShowInvalidQrPreview(checked));
+
+        // 深色模式开关：偏好独立写在 NightModeManager 自己的 SharedPreferences，
+        // 切换后由 AppCompat 自动 recreate 当前 Activity 应用新配色。
+        swFollowSystemDark_.setChecked(
+                NightModeManager.get(this).isFollowSystem());
+        swFollowSystemDark_.setOnCheckedChangeListener((btn, checked) ->
+                NightModeManager.get(this).setFollowSystem(checked));
 
         int currentGrace = prefs.getAutoLockGraceSec();
         int checkedId = mapGraceToRadioId(currentGrace);

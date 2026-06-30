@@ -51,7 +51,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="8dp"
                 android:text="@string/settings_section_display"
-                android:textColor="@color/brand_primary"
+                android:textColor="@color/brand_primary_text"
                 android:textStyle="bold"
                 android:textSize="14sp" />
 
@@ -129,6 +129,29 @@
                         android:text="@string/settings_show_invalid_qr_preview_summary"
                         android:textColor="@color/text_secondary"
                         android:textSize="12sp" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="12dp"
+                        android:layout_marginBottom="12dp"
+                        android:background="@color/divider" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/sw_follow_system_dark"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/settings_follow_system_dark_title"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="@string/settings_follow_system_dark_summary"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -138,7 +161,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="8dp"
                 android:text="@string/settings_section_security"
-                android:textColor="@color/brand_primary"
+                android:textColor="@color/brand_primary_text"
                 android:textStyle="bold"
                 android:textSize="14sp" />
 

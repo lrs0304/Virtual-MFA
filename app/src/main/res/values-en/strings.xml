@@ -174,6 +174,8 @@
     <string name="settings_show_next_summary">Reveal the upcoming code right before rollover so a paste does not expire instantly.</string>
     <string name="settings_show_invalid_qr_preview_title">Show preview for invalid QR codes</string>
     <string name="settings_show_invalid_qr_preview_summary">When scanning or importing a QR that is not a MFA configuration, open a preview page with the decoded text so you can copy and verify it. Turn off to only show a brief toast.</string>
+    <string name="settings_follow_system_dark_title">Follow system dark mode</string>
+    <string name="settings_follow_system_dark_summary">When on, the app switches between light and dark to match the system setting. Turn off to always stay in light mode.</string>
     <string name="settings_grace_title">Auto-lock grace period</string>
     <string name="settings_grace_summary">After the app goes to background for this long, re-unlock is required. Longer = more convenient, less secure.</string>
     <string name="settings_grace_0">Lock immediately (recommended, strictest)</string>

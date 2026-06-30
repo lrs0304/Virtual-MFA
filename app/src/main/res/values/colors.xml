@@ -1,15 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 互联网科技风：深蓝主色 + 青色点缀 -->
+    <!--
+        品牌色：色相在两套主题下都是蓝，但明度按用途分两支：
+          brand_primary       AppBar / 大色块底色用，深色下变暗（#14375F）
+          brand_primary_dark  深一级阴影色，深色下进一步压暗
+          brand_primary_text  文字 / 小尺寸控件用，深色下变亮（亮蓝）
+        brand_accent / brand_warn 是功能/告警语义色，跨主题保持一致。
+    -->
     <color name="brand_primary">#1976D2</color>
     <color name="brand_primary_dark">#0D47A1</color>
     <color name="brand_accent">#00BCD4</color>
     <color name="brand_warn">#FF5722</color>
 
+    <!--
+        品牌色的"文本/小尺寸控件"专用版。
+        - 浅色模式：与 brand_primary 同色（直接复用，无视觉差异）；
+        - 深色模式：在 values-night 覆写为更亮的蓝（如 #64B5F6），
+          以便在暗底（#121212）上保持足够的对比度。
+        用法：分区标题、链接按钮、生物识别按钮等"小面积文字着色"场景。
+        反例：AppBar 大色块、按钮 backgroundTint 等大色块场景仍用 brand_primary。
+    -->
+    <color name="brand_primary_text">#1976D2</color>
+
+    <!-- 页面承载色：浅色主题 = 浅灰窗 + 纯白卡。深色主题在 values-night
+         里覆写为深灰窗 + 次深灰卡。 -->
     <color name="bg_window">#F5F7FA</color>
     <color name="bg_card">#FFFFFFFF</color>
     <color name="bg_card_dark">#FF1E1E1E</color>
 
+    <!-- 文本色：text_primary 主文本，text_secondary 次文本。
+         text_inverse 表示"主色背景上的反色文本"，无论深浅都用白色。 -->
     <color name="text_primary">#212121</color>
     <color name="text_secondary">#757575</color>
     <color name="text_inverse">#FFFFFFFF</color>
@@ -22,4 +42,13 @@
     <color name="progress_active">#FF22C55E</color>
     <color name="progress_track">#FFE5E7EB</color>
     <color name="progress_warn">#FFEF4444</color>
+
+    <!-- 状态提示条配色：浅色主题下用浅底+深字，深色主题下用深底+亮字。
+         不直接用品牌警告色，避免与 brand_warn 混淆。 -->
+    <!-- 失败/错误：浅红底 + 深红字 -->
+    <color name="hint_bg_error">#FFFFEBEE</color>
+    <color name="hint_text_error">#FFC62828</color>
+    <!-- 信息/操作引导：浅黄底 + 深棕字 -->
+    <color name="hint_bg_info">#FFFFF8E1</color>
+    <color name="hint_text_info">#FF6D4C00</color>
 </resources>

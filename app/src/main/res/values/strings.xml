@@ -168,6 +168,8 @@
     <string name="settings_show_next_summary">临近过期时同时呈现下一周期的码，避免粘贴时刚好失效</string>
     <string name="settings_show_invalid_qr_preview_title">无效二维码显示原文预览</string>
     <string name="settings_show_invalid_qr_preview_summary">扫码或相册导入识别到二维码但不是 MFA 配置时，跳转到原文预览页方便复制查证；关闭后仅以提示一笔带过。</string>
+    <string name="settings_follow_system_dark_title">跟随系统深色模式</string>
+    <string name="settings_follow_system_dark_summary">开启后会根据系统设置自动在亮色/深色之间切换；关闭则始终保持亮色配色。</string>
     <string name="settings_grace_title">自动锁定宽限期</string>
     <string name="settings_grace_summary">应用进入后台超过该时长后才需要重新解锁。设置越长越方便、安全性越弱，请按需选择。</string>
     <string name="settings_grace_0">立即锁定（推荐，最严格）</string>
