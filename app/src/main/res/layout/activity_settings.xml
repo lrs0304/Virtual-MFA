@@ -33,6 +33,11 @@
         android:layout_height="match_parent"
         android:background="@color/bg_window"
         android:padding="16dp"
+        android:scrollbarSize="3dp"
+        android:scrollbarThumbVertical="@drawable/scrollbar_thumb_thin"
+        android:scrollbarStyle="outsideOverlay"
+        android:scrollbarFadeDuration="500"
+        android:scrollbarDefaultDelayBeforeFade="800"
         android:fillViewport="true">
 
         <LinearLayout
