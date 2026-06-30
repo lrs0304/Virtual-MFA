@@ -52,7 +52,7 @@
 
     <!-- QR failure handling: content preview -->
     <string name="title_qr_content_preview">QR Content (add failed)</string>
-    <string name="qr_content_preview_hint">This QR code is not a valid MFA configuration (otpauth) and cannot be added as an account.\nBelow is the full decoded text (%1$d characters). You may copy it and verify with other tools.</string>
+    <string name="qr_content_preview_hint">This QR code is not a valid MFA configuration (otpauth); add failed.\nBelow is the full decoded text (%1$d characters).</string>
     <string name="action_copy_content">Copy content</string>
     <string name="action_close">Close</string>
     <string name="copied_to_clipboard">Copied to clipboard</string>

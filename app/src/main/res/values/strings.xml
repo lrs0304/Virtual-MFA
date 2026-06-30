@@ -46,7 +46,7 @@
 
     <!-- 二维码失败处理：内容预览页 -->
     <string name="title_qr_content_preview">二维码内容（添加失败）</string>
-    <string name="qr_content_preview_hint">该二维码内容不是有效的 MFA 配置（otpauth），无法添加为账号。\n下方为解码出的完整原文（共 %1$d 个字符），可复制后用其他方式查证。</string>
+    <string name="qr_content_preview_hint">该二维码内容不是有效的 MFA 配置（otpauth），添加失败。\n下方为解码出的完整原文（共 %1$d 个字符）</string>
     <string name="action_copy_content">复制内容</string>
     <string name="action_close">关闭</string>
     <string name="copied_to_clipboard">已复制到剪贴板</string>
